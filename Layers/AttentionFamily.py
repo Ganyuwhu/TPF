@@ -71,7 +71,7 @@ class DSAttention(nn.Module):
         if self.mask_flag:
             attn_mask = TriangleMask(shape=(b, l), device=query.device).mask
             attn_mask = attn_mask.unsqueeze(1).unsqueeze(2)
-            attn_score = attn_score.masked_fill(attn_mask.mask, -np.inf)
+            attn_score = attn_score.masked_fill(attn_mask, -np.inf)
 
         attn_weight = self.dropout(torch.softmax(attn_score, dim=-1))
         output = torch.einsum("bhls, bshd->blhd", attn_weight, value)
@@ -83,17 +83,17 @@ class DSAttention(nn.Module):
 
 
 class CrossAttentionLayer(nn.Module):
-    def __init__(self, n_head=1, scale=None, output_attention=False, d_model=1, init_model="kaiming"):
+    def __init__(self, n_heads=1, scale=None, output_attention=False, d_model=1, init_model="kaiming"):
         super(CrossAttentionLayer, self).__init__()
         self.scale = scale
         self.d_model = d_model
         self.output_attention = output_attention
-        self.d_head = d_model // n_head
-        self.output_projection = nn.Linear(n_head*self.d_head, d_model)
+        self.d_head = d_model // n_heads
+        self.output_projection = nn.Linear(n_heads * self.d_head, d_model)
 
-        self.W_q = nn.Parameter(get_weight(d_model, self.d_head*n_head, init_model))
-        self.W_k = nn.Parameter(get_weight(d_model, self.d_head*n_head, init_model))
-        self.W_v = nn.Parameter(get_weight(d_model, self.d_head*n_head, init_model))
+        self.W_q = nn.Parameter(get_weight(d_model, self.d_head * n_heads, init_model))
+        self.W_k = nn.Parameter(get_weight(d_model, self.d_head * n_heads, init_model))
+        self.W_v = nn.Parameter(get_weight(d_model, self.d_head * n_heads, init_model))
 
     def forward(self, query, key, value):
         """
@@ -139,7 +139,7 @@ class CrossAttentionLayer(nn.Module):
 
 
 class SelfAttentionLayer(nn.Module):
-    def __init__(self, n_head, attn_type, mask_flag, scale, tau, delta, attention_dropout=0.1, output_attention=False,
+    def __init__(self, n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout=0.1, output_attention=False,
                  last_dim=1, d_model=1, init_model="kaiming"):
         super(SelfAttentionLayer, self).__init__()
         if attn_type == "DS":
@@ -147,21 +147,20 @@ class SelfAttentionLayer(nn.Module):
         else:
             self.attention = Attention(mask_flag, scale, attention_dropout, output_attention)
 
-        d_key = d_value = d_model // n_head
+        d_key = d_value = d_model // n_heads
 
-        self.W_q = nn.Parameter(get_weight(last_dim, d_key * n_head, init_model))
-        self.W_k = nn.Parameter(get_weight(last_dim, d_key * n_head, init_model))
-        self.W_v = nn.Parameter(get_weight(last_dim, d_value * n_head, init_model))
-        self.n_head = n_head
+        self.W_q = nn.Parameter(get_weight(last_dim, d_key * n_heads, init_model))
+        self.W_k = nn.Parameter(get_weight(last_dim, d_key * n_heads, init_model))
+        self.W_v = nn.Parameter(get_weight(last_dim, d_value * n_heads, init_model))
+        self.n_head = n_heads
 
-        self.output_projection = nn.Linear(d_value * n_head, d_model)
+        self.output_projection = nn.Linear(d_value * n_heads, d_model)
 
     def forward(self, query):
         origin_dim = query.shape
         if len(origin_dim) == 4:
-            query = query.reshape(origin_dim[0]*origin_dim[1], origin_dim[2], -1)
-            key = query.reshape(origin_dim[0]*origin_dim[1], origin_dim[2], -1)
-            value = query.reshape(origin_dim[0]*origin_dim[1], origin_dim[2], -1)
+            x = query.reshape(origin_dim[0]*origin_dim[1], origin_dim[2], -1)
+            query = key = value = x
         else:
             key = value = query
 
@@ -187,7 +186,7 @@ class SelfAttentionLayer(nn.Module):
 
 
 if __name__ == "__main__":
-    ca = CrossAttentionLayer(n_head=4, scale=None, output_attention=False, d_model=512, init_model="kaiming")
+    ca = CrossAttentionLayer(n_heads=4, scale=None, output_attention=False, d_model=512, init_model="kaiming")
     q = torch.rand((64, 3, 27, 512))
     k = torch.rand((64, 12, 27, 512))
     v = k

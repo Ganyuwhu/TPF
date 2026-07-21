@@ -102,14 +102,13 @@ class FixedEmbedding(nn.Module):
 
 
 class StaticTimeEmbedding(nn.Module):
-    def __init__(self, static_dim, time_dim=4, embed_dim=64, embed_type='fixed', freq='h'):
+    def __init__(self, static_dim, time_dim=4, embed_dim=64, embed_type='fixed'):
         """
         Args:
             static_dim: 静态特征维度 (29)
             time_dim: 时间戳维度 (4)
             embed_dim: 时间戳嵌入维度
             embed_type: 嵌入类型 ('fixed' 或 'learnable')
-            freq: 时间频率 ('h' 表示小时级)
         """
         super(StaticTimeEmbedding, self).__init__()
 
