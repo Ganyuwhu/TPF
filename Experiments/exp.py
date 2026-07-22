@@ -684,84 +684,85 @@ class Exp:
             return test_metrics
 
     def train_classification(self):
-        print(f'start training: {self.dataset_type}_{self.setting}')
-        checkpoint_save_pth = self.checkpoints_path / self.model_type / self.setting  # 保存checkpoint的路径
-        Path(checkpoint_save_pth).mkdir(parents=True, exist_ok=True)
-        train_dataset, train_dataloader = self.datasets['train_dataset'], self.dataloaders['train_dataloader']
-
-        train_steps = len(train_dataloader)
-        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
-
-        # 获取待测试模型
-        if self.model_path is not None:
-            self.model = self._load_model(self.model_path)
-
-        self.model = self.model.to(self.device)
-
-        # 一次性冻结所有需要冻结的参数
-        freeze_patterns = ['TriBlock.MMAList', 'output_projection']
-
-        for name, param in self.model.named_parameters():
-            if any(pattern in name for pattern in freeze_patterns):
-                param.requires_grad = False
-
-        # 开始训练
-        model_optim = self._select_optimizer(self.lr)
-
-        for current_epoch in range(self.train_epochs):
-            self.model.train()
-            epoch_start_time = time.time()  # 当前epoch的开始时间
-
-            for i, batch in enumerate(tqdm(train_dataloader)):
-                model_optim.zero_grad()  # 清除上一次反向传播中的梯度
-                batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
-                batch_x = batch_x.float().to(self.device)
-                batch_label = batch_label.float().to(self.device)
-                batch_y = batch_y.float().to(self.device)
-                batch_y = batch_y.permute(0, 2, 1)
-                batch_x_stamp = batch_x_stamp.float().to(self.device)
-                batch_label_stamp = batch_label_stamp.float().to(self.device)
-                batch_air = batch_air.float().to(self.device)
-                batch_air_label = batch_air_label.float().to(self.device)
-                batch_static = batch_static.float().to(self.device)
-
-                # 获取模型预测值
-                batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                predict = self.model(batch)
-
-                # 反向传播
-                self.backward(
-                        _metrics=current_metrics.datas,
-                        _optim=model_optim,
-                        _scaler=None,
-                        _loss_func=self.loss_func
-                )
-            adjust_learning_rate(model_optim, current_epoch + 1, self.args)
-
-            print("Epoch: {} cost time: {}".format(current_epoch + 1, time.time() - epoch_start_time))
-            # 记录当前epoch的评均train_metrics
-            train_metrics.update_data(batch_metrics.mean, index=current_epoch)
-
-            # 获取验证集
-            vali_metrics = self.vali()
-
-            print(f"Epoch: {current_epoch + 1}, Steps: {train_steps}")
-            print('train_metrics:')
-            train_metrics.show(current_epoch)
-
-            torch.save(self.model.state_dict(), checkpoint_save_pth / f'checkpoint_{current_epoch}.pth')
-
-            if self.args.loss_func == 'mse':
-                early_stopping(vali_metrics.datas['mse_loss'], self.model, checkpoint_save_pth)
-            elif self.args.loss_func == 'rmse':
-                early_stopping(vali_metrics.datas['rmse_loss'], self.model, checkpoint_save_pth)
-            elif self.args.loss_func == 'ps':
-                early_stopping(vali_metrics.datas['ps_loss'], self.model, checkpoint_save_pth)
-            else:
-                raise ValueError
-
-            if early_stopping.early_stop:
-                print("Early stopping")
-                break
-
-        return train_metrics
+        pass
+        # print(f'start training: {self.dataset_type}_{self.setting}')
+        # checkpoint_save_pth = self.checkpoints_path / self.model_type / self.setting  # 保存checkpoint的路径
+        # Path(checkpoint_save_pth).mkdir(parents=True, exist_ok=True)
+        # train_dataset, train_dataloader = self.datasets['train_dataset'], self.dataloaders['train_dataloader']
+        #
+        # train_steps = len(train_dataloader)
+        # early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
+        #
+        # # 获取待测试模型
+        # if self.model_path is not None:
+        #     self.model = self._load_model(self.model_path)
+        #
+        # self.model = self.model.to(self.device)
+        #
+        # # 一次性冻结所有需要冻结的参数
+        # freeze_patterns = ['TriBlock.MMAList', 'output_projection']
+        #
+        # for name, param in self.model.named_parameters():
+        #     if any(pattern in name for pattern in freeze_patterns):
+        #         param.requires_grad = False
+        #
+        # # 开始训练
+        # model_optim = self._select_optimizer(self.lr)
+        #
+        # for current_epoch in range(self.train_epochs):
+        #     self.model.train()
+        #     epoch_start_time = time.time()  # 当前epoch的开始时间
+        #
+        #     for i, batch in enumerate(tqdm(train_dataloader)):
+        #         model_optim.zero_grad()  # 清除上一次反向传播中的梯度
+        #         batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
+        #         batch_x = batch_x.float().to(self.device)
+        #         batch_label = batch_label.float().to(self.device)
+        #         batch_y = batch_y.float().to(self.device)
+        #         batch_y = batch_y.permute(0, 2, 1)
+        #         batch_x_stamp = batch_x_stamp.float().to(self.device)
+        #         batch_label_stamp = batch_label_stamp.float().to(self.device)
+        #         batch_air = batch_air.float().to(self.device)
+        #         batch_air_label = batch_air_label.float().to(self.device)
+        #         batch_static = batch_static.float().to(self.device)
+        #
+        #         # 获取模型预测值
+        #         batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
+        #         predict = self.model(batch)
+        #
+        #         # 反向传播
+        #         self.backward(
+        #                 _metrics=current_metrics.datas,
+        #                 _optim=model_optim,
+        #                 _scaler=None,
+        #                 _loss_func=self.loss_func
+        #         )
+        #     adjust_learning_rate(model_optim, current_epoch + 1, self.args)
+        #
+        #     print("Epoch: {} cost time: {}".format(current_epoch + 1, time.time() - epoch_start_time))
+        #     # 记录当前epoch的评均train_metrics
+        #     train_metrics.update_data(batch_metrics.mean, index=current_epoch)
+        #
+        #     # 获取验证集
+        #     vali_metrics = self.vali()
+        #
+        #     print(f"Epoch: {current_epoch + 1}, Steps: {train_steps}")
+        #     print('train_metrics:')
+        #     train_metrics.show(current_epoch)
+        #
+        #     torch.save(self.model.state_dict(), checkpoint_save_pth / f'checkpoint_{current_epoch}.pth')
+        #
+        #     if self.args.loss_func == 'mse':
+        #         early_stopping(vali_metrics.datas['mse_loss'], self.model, checkpoint_save_pth)
+        #     elif self.args.loss_func == 'rmse':
+        #         early_stopping(vali_metrics.datas['rmse_loss'], self.model, checkpoint_save_pth)
+        #     elif self.args.loss_func == 'ps':
+        #         early_stopping(vali_metrics.datas['ps_loss'], self.model, checkpoint_save_pth)
+        #     else:
+        #         raise ValueError
+        #
+        #     if early_stopping.early_stop:
+        #         print("Early stopping")
+        #         break
+        #
+        # return train_metrics
