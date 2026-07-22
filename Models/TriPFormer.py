@@ -7,7 +7,7 @@ from Utils.Dir import *
 from Utils.Tools import Transpose
 from Layers.Embed import PositionalEmbedding, PatchEmbedding, StaticTimeEmbedding
 from Layers.AttentionFamily import SelfAttentionLayer, CrossAttentionLayer
-from Layers.MoE import *
+from Layers.MoHE import *
 
 
 class Preprocessing(nn.Module):

@@ -2,11 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="32377f6f-1cb8-4a60-ba91-8ec2135075e4" name="更改" comment="更改">
-      <change afterPath="$PROJECT_DIR$/Layers/DeepSeekMoE.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Layers/MoHE.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Layers/Switch_Transformer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Layers/MoE.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Models/TriPFormer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Models/TriPFormer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
