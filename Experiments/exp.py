@@ -421,7 +421,7 @@ class Exp:
             elif self.args.loss_func == 'ps':
                 _metrics['ps_loss'].backward()
             else:
-                raise ValueError
+                raise _metrics.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1000)
             _optim.step()
 
@@ -704,6 +704,7 @@ class Exp:
         for name, param in self.model.named_parameters():
             if any(pattern in name for pattern in freeze_patterns):
                 param.requires_grad = False
+        print("已冻结预测头，保留分类头")
 
         # 开始训练
         model_optim = self._select_optimizer(self.lr)
@@ -730,21 +731,19 @@ class Exp:
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
                 classification = self.model.classify(batch)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
-                base = torch.tensor(np.arange(num_pollutants))
+                base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
+                labels = labels.to(classification.device)
 
                 classification = classification.reshape(batch_size*num_pollutants, -1)
-                labels = labels.reshape(batch_size*num_pollutants, -1)
+                labels = labels.reshape(batch_size*num_pollutants)
                 loss = nn.functional.nll_loss(classification, labels)
                 all_loss.append(loss.item())
 
                 # 反向传播
-                self.backward(
-                        _metrics=loss,
-                        _optim=model_optim,
-                        _scaler=None,
-                        _loss_func=self.loss_func
-                )
+                model_optim.zero_grad()  # 1. 清空梯度
+                loss.backward()  # 2. 反向传播计算梯度
+                model_optim.step()  # 3. 更新参数
             adjust_learning_rate(model_optim, current_epoch + 1, self.args)
 
             print("Epoch: {} cost time: {}".format(current_epoch + 1, time.time() - epoch_start_time))
@@ -795,11 +794,12 @@ class Exp:
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
                 classification = self.model.classify(batch)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
-                base = torch.tensor(np.arange(num_pollutants))
+                base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
+                labels = labels.to(classification.device)
 
                 classification = classification.reshape(batch_size*num_pollutants, -1)
-                labels = labels.reshape(batch_size*num_pollutants, -1)
+                labels = labels.reshape(batch_size*num_pollutants)
                 loss = nn.functional.nll_loss(classification, labels)
                 all_loss.append(loss.item())
 
