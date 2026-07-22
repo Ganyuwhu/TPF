@@ -2,12 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="32377f6f-1cb8-4a60-ba91-8ec2135075e4" name="更改" comment="更改">
-      <change afterPath="$PROJECT_DIR$/Layers/MoE.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/TPF.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/TPF.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Layers/DeepSeekMoE.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Layers/MoHE.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Layers/Switch_Transformer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Experiments/TriPFormer_args.py" beforeDir="false" afterPath="$PROJECT_DIR$/Experiments/TriPFormer_args.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Layers/AttentionFamily.py" beforeDir="false" afterPath="$PROJECT_DIR$/Layers/AttentionFamily.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Layers/Embed.py" beforeDir="false" afterPath="$PROJECT_DIR$/Layers/Embed.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Layers/MoE.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Models/TriPFormer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Models/TriPFormer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -90,7 +89,7 @@
       <recent name="C:\Users\gzr\Desktop\study\VHR\TPF\Models\models_MTL" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.TriPFormer_reset">
+  <component name="RunManager" selected="Python.TriPFormer">
     <configuration name="AttentionFamily" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="TPF" />
       <option name="ENV_FILES" value="" />
@@ -213,9 +212,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.TriPFormer_reset" />
-        <item itemvalue="Python.AttentionFamily" />
         <item itemvalue="Python.TriPFormer" />
+        <item itemvalue="Python.AttentionFamily" />
         <item itemvalue="Python.TimesNet_args" />
         <item itemvalue="Python.AutoFormer_args" />
       </list>

@@ -192,13 +192,13 @@ class TriBlock(nn.Module):
 class TriPFormer(nn.Module):
     def __init__(self, seq_len, pred_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
                  embed_dim, embed_type, n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                 output_attention, last_dim, n_vars, init_model, no_air, no_static, ms_type, n_layers):
+                 output_attention, last_dim, n_vars, init_model, no_air, no_static, ms_type, n_layers, **kwargs):
         super().__init__()
 
         self.PRE = Preprocessing(seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
                                  embed_dim, embed_type)
         self.TriBlock = TriBlock(n_heads, n_layers, n_vars, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                                 output_attention, last_dim, d_model, init_model, no_air, no_static, ms_type)
+                                 output_attention, last_dim, d_model, init_model, no_air, no_static, ms_type, **kwargs)
         self.output_projection = nn.Linear(d_model, pred_len)
 
     def forward(self, x, stamp=None, air=None, static=None):

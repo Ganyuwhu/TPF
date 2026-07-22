@@ -21,3 +21,4 @@ __pycache__/
 *.aux.xml
 Dataset/
 checkpoints/
+.idea/workspace.xml

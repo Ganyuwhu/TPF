@@ -8,6 +8,7 @@ from Models.AutoFormer import Model as AutoFormer
 from Models.TimeMixer import Model as TimeMixer
 from Models.TimesNet import Model as TimesNet
 from Models.LSTM_Family import Model as LSTM
+from Models.TriPFormer import Model as TriPFormer
 
 import torch
 import json
@@ -221,7 +222,8 @@ class Exp:
             'AutoFormer': AutoFormer,
             'TimeMixer': TimeMixer,
             'TimesNet': TimesNet,
-            'LSTM': LSTM
+            'LSTM': LSTM,
+            'TriPFormer': TriPFormer
         }
         self.model = self.model_supported[self.args.model_type](self.args).float() # 初始化一个模型
         self.model_path = self.args.model_path  # 使用已存在的模型，允许该项为None

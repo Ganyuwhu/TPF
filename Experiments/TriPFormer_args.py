@@ -29,6 +29,7 @@ def get_site_args():
     parser.add_argument('--lradj', type=str, default='type3')
     parser.add_argument('--patience', type=int, default=5)
     parser.add_argument("--zero_fix", type=bool, default=True)
+    parser.add_argument('--label', type=bool, default=False)
 
     # model
     parser.add_argument("--d_model", type=int, default=512)
@@ -66,7 +67,7 @@ def get_site_args():
     parser.add_argument('--use_amp', type=bool, default=False)
     parser.add_argument('--model_type', type=str, default='TriPFormer')
     parser.add_argument('--model_path', type=str, default=None)
-    parser.add_argument('--train_epochs', type=int, default=1)
+    parser.add_argument('--train_epochs', type=int, default=10)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--dataset_type', type=str, default='site')
     parser.add_argument('--checkpoints_path', type=Path, default=project_dir / 'checkpoints')
@@ -81,3 +82,8 @@ if __name__ == "__main__":
     args = get_site_args()
     exp = Exp(args)
     exp.train()
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/test.csv"
+    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    exp_test = Exp(args)
+    exp_test.test()
