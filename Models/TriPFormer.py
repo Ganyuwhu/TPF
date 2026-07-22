@@ -203,8 +203,8 @@ class TriPFormer(nn.Module):
                                  output_attention, last_dim, d_model, init_model, no_air, no_static, **kwargs)
         self.output_projection = nn.Linear(d_model, pred_len)
 
-    def forward(self, x, stamp=None, air=None, static=None):
-        x, stamp, air, static = self.PRE(x, stamp, air, static)
+    def forward(self, x, time_stamp=None, air=None, static=None):
+        x, stamp, air, static = self.PRE(x, time_stamp, air, static)
         classification = self.Classifier(x)
         dec_out = self.TriBlock(x, stamp, air, static, classification)
         dec_out = dec_out.mean(dim=2)
@@ -218,6 +218,9 @@ class TriPFormer(nn.Module):
 
     def classify(self, input_datas):
         x, _, _, time_stamp, _, air, _, static = input_datas
+        x, stamp, air, static = self.PRE(x, time_stamp, air, static)
+        classification = self.Classifier(x)
+        return classification
 
 
 class Model(nn.Module):
@@ -256,6 +259,9 @@ class Model(nn.Module):
 
     def forward(self, input_datas):
         return self.model.pack_forward(input_datas)
+
+    def classify(self, input_datas):
+        return self.model.classify(input_datas)
 
 
 if __name__ == "__main__":
