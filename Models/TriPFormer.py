@@ -143,14 +143,14 @@ class MultiModalAttention(nn.Module):
 class TriBlock(nn.Module):
     def __init__(self, n_heads, n_layers, n_pollutants,  attn_type="DS", mask_flag=True,
                  scale=None, tau=1., delta=0., attention_dropout=0.1, output_attention=False, last_dim=512, d_model=512,
-                 init_model="kaiming", no_air=False, no_static=False, ms_type="self", **kwargs):
+                 init_model="kaiming", no_air=False, no_static=False, **kwargs):
         super().__init__()
 
         self.n_pollutants = n_pollutants
         self.n_layers = n_layers
-        self.module_selector = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                                              output_attention, last_dim, d_model, n_pollutants,
-                                              init_model, no_air, no_static, ms_type, **kwargs)
+        # self.module_selector = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
+        #                                       output_attention, last_dim, d_model, n_pollutants,
+        #                                       init_model, no_air, no_static, ms_type, **kwargs)
         self.MMAList = nn.ModuleList([
                 nn.ModuleList([
                     nn.ModuleList([
@@ -167,8 +167,7 @@ class TriBlock(nn.Module):
             for _ in range(n_pollutants)
         ])
 
-    def forward(self, x, stamp=None, air=None, static=None):
-        classification = self.module_selector(x)
+    def forward(self, x, stamp=None, air=None, static=None, classification=None):
         out = []
         for i in range(self.n_pollutants):
             m_list = self.MMAList[i]
@@ -197,13 +196,17 @@ class TriPFormer(nn.Module):
 
         self.PRE = Preprocessing(seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
                                  embed_dim, embed_type)
+        self.Classifier = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
+                                         output_attention, last_dim, d_model, n_vars,
+                                         init_model, no_air, no_static, ms_type, **kwargs)
         self.TriBlock = TriBlock(n_heads, n_layers, n_vars, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                                 output_attention, last_dim, d_model, init_model, no_air, no_static, ms_type, **kwargs)
+                                 output_attention, last_dim, d_model, init_model, no_air, no_static, **kwargs)
         self.output_projection = nn.Linear(d_model, pred_len)
 
     def forward(self, x, stamp=None, air=None, static=None):
         x, stamp, air, static = self.PRE(x, stamp, air, static)
-        dec_out = self.TriBlock(x, stamp, air, static)
+        classification = self.Classifier(x)
+        dec_out = self.TriBlock(x, stamp, air, static, classification)
         dec_out = dec_out.mean(dim=2)
         predict = self.output_projection(dec_out)
         return predict
@@ -212,6 +215,9 @@ class TriPFormer(nn.Module):
         x, _, _, time_stamp, _, air, _, static = input_datas
         prediction = self.forward(x, time_stamp, air, static)
         return prediction
+
+    def classify(self, input_datas):
+        x, _, _, time_stamp, _, air, _, static = input_datas
 
 
 class Model(nn.Module):

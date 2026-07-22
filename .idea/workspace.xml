@@ -3,6 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="32377f6f-1cb8-4a60-ba91-8ec2135075e4" name="更改" comment="更改">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Experiments/exp.py" beforeDir="false" afterPath="$PROJECT_DIR$/Experiments/exp.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Models/TriPFormer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Models/TriPFormer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
