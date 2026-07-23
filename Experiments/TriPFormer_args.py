@@ -83,6 +83,7 @@ if __name__ == "__main__":
     exp = Exp(args)
     exp.train_classification()
     args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    exp.train_predictor()
     exp.train()
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"

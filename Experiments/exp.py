@@ -806,3 +806,108 @@ class Exp:
             vali_loss = sum(all_loss) / len(all_loss)
 
         return vali_loss
+
+    def train_predictor(self):
+        print(f'start training: {self.dataset_type}_{self.setting}')
+        checkpoint_save_pth = self.checkpoints_path / self.model_type / self.setting  # 保存checkpoint的路径
+        Path(checkpoint_save_pth).mkdir(parents=True, exist_ok=True)
+        train_dataset, train_dataloader = self.datasets['train_dataset'], self.dataloaders['train_dataloader']
+
+        train_steps = len(train_dataloader)
+        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
+
+        train_metrics, batch_metrics, current_metrics = ExpMetrics(self.target, self.train_epochs), ExpMetrics(self.target, len(train_dataloader)), ExpMetrics(self.target)
+
+        # 获取待测试模型
+        if self.model_path is not None:
+            self.model = self._load_model(self.model_path)
+
+        self.model = self.model.to(self.device)
+
+        # 开始训练
+        model_optim = self._select_optimizer(self.lr)
+
+        # 一次性冻结所有需要冻结的参数
+        freeze_patterns = ['PRE', 'Classifier']
+
+        for name, param in self.model.named_parameters():
+            if any(pattern in name for pattern in freeze_patterns):
+                param.requires_grad = False
+        print("已冻结分类头，保留预测头")
+
+        if self.args.dataset_norm:
+            with open(str(project_dir / 'normalization_params.json'), 'r') as f:
+                data = json.load(f)
+                means = data['air_means']
+                stds = data['air_stds']
+            air_cols = train_dataset.air_cols
+            indices = [air_cols.index(target) for target in self.args.target]
+            target_means = torch.tensor([means[i] for i in indices], requires_grad=False).to(self.device)
+            target_stds = torch.tensor([stds[i] for i in indices], requires_grad=False).to(self.device)
+            target_means = target_means.unsqueeze(0).unsqueeze(-1)
+            target_stds = target_stds.unsqueeze(0).unsqueeze(-1)
+
+        for current_epoch in range(self.train_epochs):
+            self.model.train()
+            epoch_start_time = time.time()  # 当前epoch的开始时间
+
+            for i, batch in enumerate(tqdm(train_dataloader)):
+                model_optim.zero_grad()  # 清除上一次反向传播中的梯度
+                batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
+                batch_x = batch_x.float().to(self.device)
+                batch_label = batch_label.float().to(self.device)
+                batch_y = batch_y.float().to(self.device)
+                batch_y = batch_y.permute(0, 2, 1)
+                batch_x_stamp = batch_x_stamp.float().to(self.device)
+                batch_label_stamp = batch_label_stamp.float().to(self.device)
+                batch_air = batch_air.float().to(self.device)
+                batch_air_label = batch_air_label.float().to(self.device)
+                batch_static = batch_static.float().to(self.device)
+
+                # 获取模型预测值
+                batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
+                predict = self.model(batch)
+
+                not_nan = current_metrics.calculate(predict, batch_y)
+                predict = predict * target_stds + target_means if self.args.dataset_norm else predict
+                batch_y = batch_y * target_stds + target_means if self.args.dataset_norm else batch_y
+                denormalized = current_metrics.calculate(predict, batch_y)
+                batch_metrics.update_data(current_metrics.cpu, index=i)
+
+                # 反向传播
+                if not_nan:
+                    self.backward(
+                            _metrics=current_metrics.datas,
+                            _optim=model_optim,
+                            _scaler=None,
+                            _loss_func=self.loss_func
+                    )
+            adjust_learning_rate(model_optim, current_epoch + 1, self.args)
+
+            print("Epoch: {} cost time: {}".format(current_epoch + 1, time.time() - epoch_start_time))
+            # 记录当前epoch的评均train_metrics
+            train_metrics.update_data(batch_metrics.mean, index=current_epoch)
+
+            # 获取验证集
+            vali_metrics = self.vali()
+
+            print(f"Epoch: {current_epoch + 1}, Steps: {train_steps}")
+            print('train_metrics:')
+            train_metrics.show(current_epoch)
+
+            torch.save(self.model.state_dict(), checkpoint_save_pth / f'checkpoint_{current_epoch}.pth')
+
+            if self.args.loss_func == 'mse':
+                early_stopping(vali_metrics.datas['mse_loss'], self.model, checkpoint_save_pth)
+            elif self.args.loss_func == 'rmse':
+                early_stopping(vali_metrics.datas['rmse_loss'], self.model, checkpoint_save_pth)
+            elif self.args.loss_func == 'ps':
+                early_stopping(vali_metrics.datas['ps_loss'], self.model, checkpoint_save_pth)
+            else:
+                raise ValueError
+
+            if early_stopping.early_stop:
+                print("Early stopping")
+                break
+
+        return train_metrics
