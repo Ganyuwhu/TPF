@@ -729,7 +729,7 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                classification = self.model.classify(batch)
+                classification = torch.log(self.model.classify(batch)+1e-8)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
                 base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
@@ -792,7 +792,7 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                classification = self.model.classify(batch)
+                classification = torch.log(self.model.classify(batch)+1e-8)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
                 base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
