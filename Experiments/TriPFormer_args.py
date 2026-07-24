@@ -68,7 +68,7 @@ def get_site_args():
     parser.add_argument('--model_type', type=str, default='TriPFormer')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--train_epochs', type=int, default=10)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--learning_rate', type=float, default=1e-5)
     parser.add_argument('--dataset_type', type=str, default='site')
     parser.add_argument('--checkpoints_path', type=Path, default=project_dir / 'checkpoints')
     parser.add_argument('--loss_func', type=str, default='rmse')
@@ -80,11 +80,17 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    exp = Exp(args)
-    exp.train_classification()
-    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
-    exp.train_predictor()
-    exp.train()
+    # exp_classification = Exp(args)
+    # exp_classification.train_classification()
+    #
+    # args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    # exp_predictor = Exp(args)
+    # exp_predictor.train_predictor()
+
+    args.learning_rate = 1e-4
+    exp_finetune = Exp(args)
+    exp_finetune.train()
+
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"
     args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'

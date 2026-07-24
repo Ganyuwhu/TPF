@@ -219,6 +219,7 @@ class TriPFormer(nn.Module):
     def classify(self, input_datas):
         x, _, _, time_stamp, _, air, _, static = input_datas
         x, stamp, air, static = self.PRE(x, time_stamp, air, static)
+        print(x.shape)
         classification = self.Classifier(x)
         return classification
 
@@ -305,8 +306,8 @@ if __name__ == "__main__":
     static = torch.rand((64, 26))
     input_datas = x, label, y, x_time_stamp, label_time_stamp, air, air_label, static
 
-    # y = model(x, x_time_stamp, air, static)
-    # print(y.shape)
+    y = model(x, x_time_stamp, air, static)
+    print(y.shape)
 
-    for name, param in model.named_parameters():
-        print(name, '\n')
+    # for name, param in model.named_parameters():
+    #     print(name, '\n')
