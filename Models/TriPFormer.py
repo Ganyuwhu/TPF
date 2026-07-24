@@ -1,6 +1,7 @@
 from Layers.Embed import PatchEmbedding, StaticTimeEmbedding
 from Layers.AttentionFamily import SelfAttentionLayer, CrossAttentionLayer
 from Models.MoHE import *
+from timm.layers import DropPath
 
 
 class Preprocessing(nn.Module):
@@ -66,7 +67,7 @@ class ModuleSelector(nn.Module):
 
 class MultiModalAttention(nn.Module):
     def __init__(self, n_head, attn_type, mask_flag, scale, tau, delta, attention_dropout=0.1, output_attention=False,
-                 last_dim=512, d_model=1, n_vars=3, init_model="kaiming", no_air=False, no_static=False):
+                 last_dim=512, d_model=1, n_vars=3, init_model="kaiming", no_air=False, no_static=False, drop_rate=0.):
         super(MultiModalAttention, self).__init__()
         self.self_attn = SelfAttentionLayer(n_head, attn_type, mask_flag, scale, tau, delta, attention_dropout,
                                             output_attention, last_dim, d_model, init_model)
@@ -86,6 +87,7 @@ class MultiModalAttention(nn.Module):
             nn.Linear(256, n_vars),
             nn.Softmax(dim=-1)
         )
+        self.drop_path = DropPath(drop_rate) if drop_rate > 0. else nn.Identity()
 
     def forward(self, x, stamp=None, air=None, static=None):
         self_output, self_weight = self.self_attn(x)
@@ -121,10 +123,12 @@ class MultiModalAttention(nn.Module):
         else:
             static_weight = None
 
+        x = x + self.drop_path(_all)
+
         if self.output_attention:
-            return _all, self_weight, time_weight, air_weight, static_weight
+            return x, self_weight, time_weight, air_weight, static_weight
         else:
-            return _all
+            return x
 
     def classification(self, x):
         attention_score = self.forward(x, stamp=None, air=None, static=None) if not self.output_attention else self.forward(x, stamp=None, air=None, static=None)[0]
@@ -135,30 +139,39 @@ class MultiModalAttention(nn.Module):
 
 class TriBlock(nn.Module):
     def __init__(self, n_heads, n_layers, n_pollutants,  attn_type="DS", mask_flag=True,
-                 scale=None, tau=1., delta=0., attention_dropout=0.1, output_attention=False, last_dim=512, d_model=512,
-                 init_model="kaiming", no_air=False, no_static=False, **kwargs):
+                 scale=None, tau=1., delta=0., attention_dropout=0.2, output_attention=False, last_dim=512, d_model=512,
+                 d_ff=1024, init_model="kaiming", no_air=False, no_static=False, norm_type='rms', drop_rate=0.5, **kwargs):
         super().__init__()
 
         self.n_pollutants = n_pollutants
         self.n_layers = n_layers
-        # self.module_selector = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-        #                                       output_attention, last_dim, d_model, n_pollutants,
-        #                                       init_model, no_air, no_static, ms_type, **kwargs)
+        layers_per_pollutant = n_layers // n_pollutants
         self.MMAList = nn.ModuleList([
                 nn.ModuleList([
                     nn.ModuleList([
-                        nn.LayerNorm(d_model),
-                        nn.LayerNorm(d_model),
-                        nn.LayerNorm(d_model),
-                        nn.LayerNorm(d_model),
+                        self.get_norm(norm_type, d_model),
+                        self.get_norm(norm_type, d_model),
+                        self.get_norm(norm_type, d_model),
+                        self.get_norm(norm_type, d_model),
                         MultiModalAttention(
                             n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                            output_attention, last_dim, d_model, n_pollutants, init_model, no_air, no_static
-                        )]
-                    ) for _ in range(n_layers // n_pollutants)
+                            output_attention, last_dim, d_model, n_pollutants, init_model, no_air, no_static,
+                            drop_rate * ((i+1) / layers_per_pollutant)
+                        )
+                    ]
+                    ) for i in range(layers_per_pollutant)
             ])
             for _ in range(n_pollutants)
         ])
+        self.block_norm = self.get_norm(norm_type, d_model)
+
+        self.drop_path_ffn = DropPath(drop_rate) if drop_rate > 0. else nn.Identity()
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.ReLU(),
+            nn.Dropout(attention_dropout),
+            nn.Linear(d_ff, d_model)
+        )
 
     def forward(self, x, stamp=None, air=None, static=None, classification=None):
         out = []
@@ -178,13 +191,26 @@ class TriBlock(nn.Module):
             weight = classification[:, :, i].unsqueeze(-1).unsqueeze(-1)
             predict = predict + weight * out[i]
 
+        normed = self.block_norm(predict)
+        predict = predict + self.drop_path_ffn(normed)
+
         return predict
+
+    @ staticmethod
+    def get_norm(norm_type, d_model, init_alpha=0.5):
+        if norm_type == 'rms':
+            return RMSNorm(d_model)
+        elif norm_type == 'dyt':
+            return DynamicTanh(d_model, init_alpha)
+        else:
+            return nn.LayerNorm(d_model)
 
 
 class TriPFormer(nn.Module):
-    def __init__(self, seq_len, pred_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
-                 embed_dim, embed_type, n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                 output_attention, last_dim, n_vars, init_model, no_air, no_static, ms_type, n_layers, **kwargs):
+    def __init__(self, seq_len, pred_len, d_model, d_ff, patch_len, stride, static_dim, padding, dropout, dims,
+                 time_dim, embed_dim, embed_type, n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
+                 output_attention, last_dim, n_vars, init_model, no_air, no_static, norm_type, ms_type, n_layers,
+                 drop_rate, **kwargs):
         super().__init__()
 
         self.PRE = Preprocessing(seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
@@ -192,8 +218,9 @@ class TriPFormer(nn.Module):
         self.Classifier = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
                                          output_attention, last_dim, d_model, n_vars,
                                          init_model, no_air, no_static, ms_type, **kwargs)
-        self.TriBlock = TriBlock(n_heads, n_layers, n_vars, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                                 output_attention, last_dim, d_model, init_model, no_air, no_static, **kwargs)
+        self.TriBlock = TriBlock(n_heads, n_layers, n_vars,  attn_type, mask_flag, scale, tau, delta, attention_dropout,
+                                 output_attention, last_dim, d_model, d_ff, init_model, no_air, no_static, norm_type,
+                                 drop_rate)
         self.output_projection = nn.Linear(d_model, pred_len)
 
     def forward(self, x, time_stamp=None, air=None, static=None):
@@ -263,6 +290,7 @@ if __name__ == "__main__":
         seq_len=336,
         pred_len=168,
         d_model=512,
+        d_ff=1024,
         patch_len=24,
         stride=12,
         static_dim=26,
@@ -278,7 +306,7 @@ if __name__ == "__main__":
         scale=None,
         tau=1.,
         delta=0.,
-        attention_dropout=0.1,
+        attention_dropout=0.2,
         output_attention=False,
         last_dim=512,
         n_vars=3,
@@ -286,7 +314,9 @@ if __name__ == "__main__":
         no_air=False,
         no_static=False,
         ms_type='self',
-        n_layers=3,
+        norm_type='rms',
+        n_layers=9,
+        drop_rate=0.5
     )
 
     x = torch.rand((64, 336, 3))

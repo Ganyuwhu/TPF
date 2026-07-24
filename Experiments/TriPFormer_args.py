@@ -33,11 +33,12 @@ def get_site_args():
 
     # model
     parser.add_argument("--d_model", type=int, default=512)
+    parser.add_argument("--d_ff", type=int, default=1024)
     parser.add_argument("--patch_len", type=int, default=24)
     parser.add_argument("--stride", type=int, default=12)
     parser.add_argument("--static_dim", type=int, default=26)
     parser.add_argument("--padding", type=int, default=0)
-    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--dims", type=tuple, default=(1, 2))
     parser.add_argument("--time_dim", type=int, default=4)
     parser.add_argument("--embed_dim", type=int, default=64)
@@ -55,8 +56,10 @@ def get_site_args():
     parser.add_argument("--init_model", type=int, default=512)
     parser.add_argument("--no_air", type=bool, default=False)
     parser.add_argument("--no_static", type=bool, default=False)
+    parser.add_argument("--norm_type", type=bool, default="rms")
     parser.add_argument("--ms_type", type=str, default='self')
-    parser.add_argument("--n_layers", type=int, default=3)
+    parser.add_argument("--drop_rate", type=float, default=0.5)
+    parser.add_argument("--n_layers", type=int, default=9)
 
     # exp configs
     parser.add_argument('--mission', type=str, default='train')
