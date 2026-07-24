@@ -252,6 +252,7 @@ class Model(nn.Module):
             seq_len=configs.seq_len,
             pred_len=configs.pred_len,
             d_model=configs.d_model,
+            d_ff=configs.d_ff,
             patch_len=configs.patch_len,
             stride=configs.stride,
             static_dim=configs.static_dim,
@@ -274,7 +275,9 @@ class Model(nn.Module):
             init_model=configs.init_model,
             no_air=configs.no_air,
             no_static=configs.no_static,
+            norm_type=configs.norm_type,
             ms_type=configs.ms_type,
+            drop_rate=configs.drop_rate,
             n_layers=configs.n_layers,
         )
 
