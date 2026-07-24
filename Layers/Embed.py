@@ -44,9 +44,6 @@ class PatchEmbedding(nn.Module):
         # 3. positional embedding
         self.pe = PositionalEmbedding(d_model)
 
-        # 4. dropout
-        self.dropout = nn.Dropout(dropout).to(device)
-
     def forward(self, x):
         # 0. transpose
         x = self.transpose(x)  # [bs, n_vars, seq_len]
@@ -59,9 +56,6 @@ class PatchEmbedding(nn.Module):
 
         # 2. input encoding and positional embedding
         x = self.value_embedding(x) + self.pe(x).clone()
-
-        # 3. dropout
-        x = self.dropout(x)
 
         return x
 

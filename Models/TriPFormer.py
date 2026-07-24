@@ -67,17 +67,17 @@ class ModuleSelector(nn.Module):
 
 class MultiModalAttention(nn.Module):
     def __init__(self, n_head, attn_type, mask_flag, scale, tau, delta, attention_dropout=0.1, output_attention=False,
-                 last_dim=512, d_model=1, n_vars=3, init_model="kaiming", no_air=False, no_static=False, drop_rate=0.):
+                 last_dim=512, d_model=1, n_vars=3, init_model="kaiming", no_air=False, no_static=False):
         super(MultiModalAttention, self).__init__()
         self.self_attn = SelfAttentionLayer(n_head, attn_type, mask_flag, scale, tau, delta, attention_dropout,
                                             output_attention, last_dim, d_model, init_model)
         self.air_attn = CrossAttentionLayer(n_head, scale, output_attention, d_model, init_model)
         self.static_attn = CrossAttentionLayer(n_head, scale, output_attention, d_model, init_model)
         self.time_attn = CrossAttentionLayer(n_head, scale, output_attention, d_model, init_model)
-        self.alpha = nn.Parameter(torch.tensor(0.5))
-        self.beta = nn.Parameter(torch.tensor(0.25 if not no_air else 0.0))
-        self.gamma = nn.Parameter(torch.tensor(0.15 if not no_static else 0.0))
-        self.delta = nn.Parameter(torch.tensor(0.1))
+        self.alpha = nn.Parameter(torch.tensor(0.75))
+        self.beta = nn.Parameter(torch.tensor(0.1 if not no_air else 0.0))
+        self.gamma = nn.Parameter(torch.tensor(0.1 if not no_static else 0.0))
+        self.delta = nn.Parameter(torch.tensor(0.05))
         self.output_attention = output_attention
         self.pool = nn.AdaptiveAvgPool2d((3, d_model))
         self.projection = nn.Sequential(
@@ -87,7 +87,6 @@ class MultiModalAttention(nn.Module):
             nn.Linear(256, n_vars),
             nn.Softmax(dim=-1)
         )
-        self.drop_path = DropPath(drop_rate) if drop_rate > 0. else nn.Identity()
 
     def forward(self, x, stamp=None, air=None, static=None):
         self_output, self_weight = self.self_attn(x)
@@ -123,8 +122,6 @@ class MultiModalAttention(nn.Module):
         else:
             static_weight = None
 
-        x = x + self.drop_path(_all)
-
         if self.output_attention:
             return x, self_weight, time_weight, air_weight, static_weight
         else:
@@ -146,6 +143,10 @@ class TriBlock(nn.Module):
         self.n_pollutants = n_pollutants
         self.n_layers = n_layers
         layers_per_pollutant = n_layers // n_pollutants
+        drop_rate = [x.item() for x in torch.linspace(0, drop_rate, layers_per_pollutant)]
+        self.drop_mma = nn.ModuleList([
+            DropPath(drop_rate[i]) if drop_rate[i] > 0. else nn.Identity() for i in range(self.n_layers)
+        ])
         self.MMAList = nn.ModuleList([
                 nn.ModuleList([
                     nn.ModuleList([
@@ -155,8 +156,7 @@ class TriBlock(nn.Module):
                         self.get_norm(norm_type, d_model),
                         MultiModalAttention(
                             n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                            output_attention, last_dim, d_model, n_pollutants, init_model, no_air, no_static,
-                            drop_rate * ((i+1) / layers_per_pollutant)
+                            output_attention, last_dim, d_model, n_pollutants, init_model, no_air, no_static
                         )
                     ]
                     ) for i in range(layers_per_pollutant)
@@ -177,13 +177,14 @@ class TriBlock(nn.Module):
         out = []
         for i in range(self.n_pollutants):
             m_list = self.MMAList[i]
-            for j in range(self.n_layers // self.n_pollutants):
+            layers_per_pollutant = self.n_layers // self.n_pollutants
+            for j in range(layers_per_pollutant):
                 mod = m_list[j]
                 x = mod[0](x)
                 stamp = mod[1](stamp) if stamp is not None else stamp
                 air = mod[2](air) if air is not None else air
                 static = mod[3](static) if static is not None else static
-                x = mod[4](x, stamp, air, static)
+                x += self.drop_mma[i * layers_per_pollutant + j](mod[4](x, stamp, air, static))
             out.append(x)
 
         predict = torch.zeros_like(out[0])
@@ -191,8 +192,8 @@ class TriBlock(nn.Module):
             weight = classification[:, :, i].unsqueeze(-1).unsqueeze(-1)
             predict = predict + weight * out[i]
 
-        normed = self.block_norm(predict)
-        predict = predict + self.drop_path_ffn(normed)
+        predict = self.ffn(self.block_norm(predict))
+        predict = x + self.drop_path_ffn(predict)
 
         return predict
 
