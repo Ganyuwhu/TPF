@@ -1291,10 +1291,9 @@ class TransformerModel(nn.Module):
             # no causal mask when TransformerModel is an Encoder
             self.causal_mask= None
 
-
     def forward(self, x, x_cross, inference, flash_attn=True):
         x = self.embedding(x)
-        x_cross = self.embedding(x_cross) if x_cross is not None else None
+        x_cross = self.cross_embedding(x_cross) if x_cross is not None else None
         B, T, C= x.size()  # x(batch_size, sequence length, d_model)
         assert T <= self.block_size, \
             f"Cannot forward sequence of length {T}, block size is only {self.block_size}"
@@ -1354,7 +1353,8 @@ class Model(nn.Module):
 
     def forward(self, input_datas):
         x, label, y, x_time_stamp, label_time_stamp, air, air_label, static = input_datas
-        return self.model(x, air, None)
+        output = self.model(x, air, None)[0]
+        return output.permute(0, 2, 1)
 
 
 if __name__ == "__main__":

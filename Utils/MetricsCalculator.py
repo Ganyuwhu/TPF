@@ -332,7 +332,7 @@ class Metrics_Calculator:
         _mask = (_gt > 0)  # 清除真值中的非正项
         _mask = _mask.detach()
 
-        valid_predict, valid_gt = _predict[_mask], _gt[_mask]
+        valid_predict, valid_gt = _predict * _mask, _gt * _mask
         valid_predict_feature, valid_gt_feature = [_predict[:, i][_mask[:, i]] for i in range(_predict.shape[1])], [_gt[:, i][_mask[:, i]] for i in range(_gt.shape[1])]
 
         mse_loss = self.mse_loss(valid_predict, valid_gt)

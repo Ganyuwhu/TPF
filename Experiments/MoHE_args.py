@@ -32,7 +32,7 @@ def get_site_args():
     parser.add_argument('--label', type=bool, default=False)
 
     # model
-    parser.add_argument('--multi_modal', type=bool, default=False, help='Enable multi-modal mode')
+    parser.add_argument('--multi_modal', type=bool, default=True, help='Enable multi-modal mode')
     parser.add_argument('--is_causal', type=bool, default=False, help='Use causal attention')
     parser.add_argument('--n_layer', type=int, default=3, help='Number of transformer layers')
     parser.add_argument('--d_model', type=int, default=384, help='Model hidden dimension')
@@ -68,7 +68,7 @@ def get_site_args():
     parser.add_argument('--use_gpu', type=bool, default=True)
     parser.add_argument('--use_multi_gpu', type=bool, default=False)
     parser.add_argument('--use_amp', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, default='TriPFormer')
+    parser.add_argument('--model_type', type=str, default='MoHETransformer')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--train_epochs', type=int, default=10)
     parser.add_argument('--learning_rate', type=float, default=1e-5)
@@ -96,6 +96,6 @@ if __name__ == "__main__":
 
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"
-    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    args.model_path = project_dir / f'checkpoints/MoHETransformer/NO2_PM2.5_O3_MoHETransformer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()
