@@ -1318,7 +1318,7 @@ class TransformerModel(nn.Module):
         return output[:, -self.pred_len:, :], all_router_probs
 
 
-class MoHETransformer(nn.Module):
+class Model(nn.Module):
     def __init__(self, configs):
         super().__init__()
         self.model = TransformerModel(
