@@ -356,7 +356,10 @@ class SwitchTransformer(nn.Module):
 
         # Project to output tokens
         x = self.to_out(x)
-        return x[:, -self.pred_len:, :]
+        dec_out = x[:, -self.pred_len:, :]
+        if dec_out.shape[-1] == self.num_tokens:
+            dec_out = dec_out.permute(0, 2, 1)
+        return dec_out
 
     def pack_forward(self, input_datas):
         x, _, _, time_stamp, _, air, _, static = input_datas

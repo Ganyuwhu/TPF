@@ -250,7 +250,6 @@ class TriPFormer(nn.Module):
     def classify(self, input_datas):
         x, _, _, time_stamp, _, air, _, static = input_datas
         x, stamp, air, static = self.PRE(x, time_stamp, air, static)
-        print(x.shape)
         classification = self.Classifier(x)
         return classification
 

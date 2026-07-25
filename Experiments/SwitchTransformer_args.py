@@ -48,7 +48,7 @@ def get_site_args():
     parser.add_argument('--use_gpu', type=bool, default=True)
     parser.add_argument('--use_multi_gpu', type=bool, default=False)
     parser.add_argument('--use_amp', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, default='TriPFormer')
+    parser.add_argument('--model_type', type=str, default='SwitchTransformer')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--train_epochs', type=int, default=10)
     parser.add_argument('--learning_rate', type=float, default=1e-5)
@@ -76,6 +76,6 @@ if __name__ == "__main__":
 
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"
-    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    args.model_path = project_dir / f'checkpoints/SwitchTransformer/NO2_PM2.5_O3_SwitchTransformer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()
