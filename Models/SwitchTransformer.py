@@ -1,7 +1,10 @@
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-from zeta.nn import FeedForward, MultiQueryAttention
+
+
+from Layers.ZetaFeedForward import FeedForward
+from Layers.ZetaMultiQueryAttention import MultiQueryAttention
 
 
 """
