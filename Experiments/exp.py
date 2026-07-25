@@ -10,6 +10,7 @@ from Models.TimesNet import Model as TimesNet
 from Models.LSTM_Family import Model as LSTM
 from Models.TriPFormer import Model as TriPFormer
 from Models.MoHE import Model as MoHETransformer
+from Models.SwitchTransformer import Model as SwitchTransformer
 
 import torch
 import json
@@ -226,6 +227,7 @@ class Exp:
             'LSTM': LSTM,
             'TriPFormer': TriPFormer,
             'MoHETransformer': MoHETransformer,
+            'SwitchTransformer': SwitchTransformer
         }
         self.model = self.model_supported[self.args.model_type](self.args).float() # 初始化一个模型
         self.model_path = self.args.model_path  # 使用已存在的模型，允许该项为None
