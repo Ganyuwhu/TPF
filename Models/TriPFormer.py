@@ -21,11 +21,6 @@ class Preprocessing(nn.Module):
 
     def forward(self, x, time_stamp, air, static):
         bs = x.shape[0]
-        self.pae_x = self.pae_x.to(x.device)
-        self.pae_air = self.pae_air.to(x.device)
-        self.pae_static = self.pae_static.to(x.device)
-        self.pae_time = self.pae_time.to(x.device)
-
         # 1. static embedding
         if static is not None:
             static = self.STE(static, time_stamp)
@@ -123,9 +118,9 @@ class MultiModalAttention(nn.Module):
             static_weight = None
 
         if self.output_attention:
-            return x, self_weight, time_weight, air_weight, static_weight
+            return _all, self_weight, time_weight, air_weight, static_weight
         else:
-            return x
+            return _all
 
     def classification(self, x):
         attention_score = self.forward(x, stamp=None, air=None, static=None) if not self.output_attention else self.forward(x, stamp=None, air=None, static=None)[0]
@@ -143,57 +138,71 @@ class TriBlock(nn.Module):
         self.n_pollutants = n_pollutants
         self.n_layers = n_layers
         layers_per_pollutant = n_layers // n_pollutants
-        drop_rate = [x.item() for x in torch.linspace(0, drop_rate, layers_per_pollutant)]
-        self.drop_mma = nn.ModuleList([
-            DropPath(drop_rate[i]) if drop_rate[i] > 0. else nn.Identity() for i in range(self.n_layers)
-        ])
-        self.MMAList = nn.ModuleList([
-                nn.ModuleList([
-                    nn.ModuleList([
-                        self.get_norm(norm_type, d_model),
-                        self.get_norm(norm_type, d_model),
-                        self.get_norm(norm_type, d_model),
-                        self.get_norm(norm_type, d_model),
-                        MultiModalAttention(
-                            n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
-                            output_attention, last_dim, d_model, n_pollutants, init_model, no_air, no_static
-                        )
-                    ]
-                    ) for i in range(layers_per_pollutant)
-            ])
-            for _ in range(n_pollutants)
-        ])
+        drop_list = [x.item() for x in torch.linspace(0, drop_rate, self.n_layers)]
+
+        self.MMAList = nn.ModuleList()
+        for p_idx in range(n_pollutants):
+            pollutant_layers = nn.ModuleList()
+            for l_idx in range(layers_per_pollutant):
+                # 每一层包含：Norm -> Attention -> DropPath（残差分支）
+                layer = nn.ModuleDict({
+                    'norm': self.get_norm(norm_type, d_model),
+                    'attn': MultiModalAttention(
+                        n_heads, attn_type, mask_flag, scale, tau, delta,
+                        attention_dropout, output_attention, last_dim, d_model,
+                        n_pollutants, init_model, no_air, no_static
+                    ),
+                    'drop_path': DropPath(drop_list[p_idx * layers_per_pollutant + l_idx])
+                                 if drop_list[p_idx * layers_per_pollutant + l_idx] > 0.
+                                 else nn.Identity()
+                })
+                pollutant_layers.append(layer)
+            self.MMAList.append(pollutant_layers)
+
         self.block_norm = self.get_norm(norm_type, d_model)
 
         self.drop_path_ffn = DropPath(drop_rate) if drop_rate > 0. else nn.Identity()
         self.ffn = nn.Sequential(
             nn.Linear(d_model, d_ff),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Dropout(attention_dropout),
             nn.Linear(d_ff, d_model)
         )
 
     def forward(self, x, stamp=None, air=None, static=None, classification=None):
-        out = []
-        for i in range(self.n_pollutants):
-            m_list = self.MMAList[i]
-            layers_per_pollutant = self.n_layers // self.n_pollutants
-            for j in range(layers_per_pollutant):
-                mod = m_list[j]
-                x = mod[0](x)
-                stamp = mod[1](stamp) if stamp is not None else stamp
-                air = mod[2](air) if air is not None else air
-                static = mod[3](static) if static is not None else static
-                x += self.drop_mma[i * layers_per_pollutant + j](mod[4](x, stamp, air, static))
-            out.append(x)
+        input = x.clone()
+        raw_input = x.copy()
+        if classification is not None:
+            out = []
+            for i in range(self.n_pollutants):
+                m_list = self.MMAList[i]
+                for layer in m_list:
+                    _x = layer['norm'](raw_input)
+                    attn_out = layer['attn'](_x, stamp=stamp, air=air, static=static, classification=classification)
+                    x = x + layer['drop_path'](attn_out)
+                out.append(x)
 
-        predict = torch.zeros_like(out[0])
-        for i in range(self.n_pollutants):
-            weight = classification[:, :, i].unsqueeze(-1).unsqueeze(-1)
-            predict = predict + weight * out[i]
+            predict = torch.zeros_like(out[0])
+            for i in range(self.n_pollutants):
+                weight = classification[:, :, i].unsqueeze(-1).unsqueeze(-1)
+                predict = predict + weight * out[i]
 
-        predict = self.ffn(self.block_norm(predict))
-        predict = x + self.drop_path_ffn(predict)
+            predict = self.ffn(self.block_norm(predict))
+            predict = input + self.drop_path_ffn(predict)
+
+        else:
+            out = []
+            for i in range(self.n_pollutants):
+                m_list = self.MMAList[i]
+                x1 = x[:, i].unsqueeze(1)
+                for layer in m_list:
+                    _x = layer['norm'](x1)
+                    attn_out = layer['attn'](_x, stamp=stamp, air=air, static=static)
+                    x1 = x1 + layer['drop_path'](attn_out)
+                out.append(x1)
+            predict = torch.cat(out, dim=1)
+            predict = self.ffn(self.block_norm(predict))
+            predict = x + self.drop_path_ffn(predict)
 
         return predict
 
@@ -211,9 +220,10 @@ class TriPFormer(nn.Module):
     def __init__(self, seq_len, pred_len, d_model, d_ff, patch_len, stride, static_dim, padding, dropout, dims,
                  time_dim, embed_dim, embed_type, n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
                  output_attention, last_dim, n_vars, init_model, no_air, no_static, norm_type, ms_type, n_layers,
-                 drop_rate, **kwargs):
+                 drop_rate, separate, **kwargs):
         super().__init__()
 
+        self.separate = separate
         self.PRE = Preprocessing(seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
                                  embed_dim, embed_type)
         self.Classifier = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
@@ -226,7 +236,7 @@ class TriPFormer(nn.Module):
 
     def forward(self, x, time_stamp=None, air=None, static=None):
         x, stamp, air, static = self.PRE(x, time_stamp, air, static)
-        classification = self.Classifier(x)
+        classification = self.Classifier(x) if not self.separate else None
         dec_out = self.TriBlock(x, stamp, air, static, classification)
         dec_out = dec_out.mean(dim=2)
         predict = self.output_projection(dec_out)
@@ -280,6 +290,7 @@ class Model(nn.Module):
             ms_type=configs.ms_type,
             drop_rate=configs.drop_rate,
             n_layers=configs.n_layers,
+            separate=configs.separate
         )
 
     def forward(self, input_datas):
@@ -320,7 +331,8 @@ if __name__ == "__main__":
         ms_type='self',
         norm_type='rms',
         n_layers=9,
-        drop_rate=0.5
+        drop_rate=0.5,
+        separate=True
     )
 
     x = torch.rand((64, 336, 3))

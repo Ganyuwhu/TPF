@@ -83,12 +83,12 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # exp_classification = Exp(args)
-    # exp_classification.train_classification()
-    #
-    # args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
-    # exp_predictor = Exp(args)
-    # exp_predictor.train_predictor()
+    exp_classification = Exp(args)
+    exp_classification.train_classification()
+
+    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
+    exp_predictor = Exp(args)
+    exp_predictor.train_predictor()
 
     args.learning_rate = 1e-4
     exp_finetune = Exp(args)
