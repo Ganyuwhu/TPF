@@ -74,15 +74,15 @@ if __name__ == "__main__":
     pollutants = ['NO2', 'PM2.5', 'O3']
     static_dims = [26, 26, 7]
     for i, item in enumerate(pollutants):
-        args.target = [item]
-        args.mission = 'train'
-        args.static_dim = static_dims[i]
-        args.csv_path = project_dir / "Dataset/train.csv"
-        exp_train = Exp(args)
-        exp_train.train()
+        # args.target = [item]
+        # args.mission = 'train'
+        # args.static_dim = static_dims[i]
+        # args.csv_path = project_dir / "Dataset/train.csv"
+        # exp_train = Exp(args)
+        # exp_train.train()
         args.mission = 'test'
         args.csv_path = project_dir / "Dataset/test.csv"
         args.model_path = project_dir / f'checkpoints/AutoFormer/{item}_AutoFormer_pl336_fl168_rmse_None/checkpoint.pth'
         exp_test = Exp(args)
-        exp_test.test()
+        exp_test.test_per_site()
         args.model_path = None

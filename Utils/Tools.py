@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
+import matplotlib.pyplot as plt
+from scipy.stats import linregress, gaussian_kde
+from sklearn.linear_model import LinearRegression
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def list_from_string(s):
@@ -73,4 +77,60 @@ class EarlyStopping:
             print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model.state_dict(), path / 'checkpoint.pth')
         self.val_loss_min = val_loss
+
+
+# 绘制两个np数组的散点图
+def scatter_plot(predict, gt, pollutant_name, save_pth, logs):
+    gt = np.asarray(gt).flatten()
+    pred = np.asarray(predict).flatten()
+
+    # 去除无效值
+    mask = (~np.isnan(gt)) & (~np.isnan(pred)) & (gt >= 0) & (pred >= 0)
+    gt = gt[mask]
+    pred = pred[mask]
+
+    xy = np.vstack([gt, pred])
+    density = gaussian_kde(xy)(xy)
+
+    # 为了视觉效果：按密度排序（高密度后画）
+    idx = density.argsort()
+    gt, pred, density = gt[idx], pred[idx], density[idx]
+    density_norm = (density - density.min()) / (density.max() - density.min())
+
+    model = LinearRegression()
+    model.fit(gt.reshape(-1, 1), pred)
+    a = model.coef_[0]
+    b = model.intercept_
+    x_line = np.linspace(gt.min(), gt.max(), 100)
+    y_line = model.predict(x_line.reshape(-1, 1))
+
+    colors = ['blue', 'lime', 'yellow', 'orange', 'red']  # 从低到高
+    cmap = LinearSegmentedColormap.from_list('pollutant_cmap', colors, N=256)
+    cmap.set_bad(color='white')
+
+    plt.figure(figsize=(6, 6))
+
+    sc = plt.scatter(
+        gt, pred,
+        c=density_norm,
+        s=10,
+        cmap=cmap,
+        alpha=0.8
+    )
+
+    plt.plot(x_line, y_line, color='black', lw=2)
+    plt.plot(x_line, x_line, '--', color='gray', lw=1)
+
+    plt.xlabel(f'Predict {pollutant_name}', fontsize=16)
+    plt.ylabel(f'GT {pollutant_name}', fontsize=16)
+    # plt.title(logs['title'], fontsize=16)
+
+    plt.tight_layout()
+
+    # 填充文本
+    # plt.text(0.05, 0.95, s=logs['R'], transform=plt.gca().transAxes, fontsize=16)
+    # plt.text(0.05, 0.9, s=logs['RMSE'], transform=plt.gca().transAxes, fontsize=16)
+    plt.text(0.05, 0.85, s=f'y = {a: .2f}x + {b: .2f}', transform=plt.gca().transAxes, fontsize=16)
+
+    plt.savefig(save_pth, dpi=600)
 

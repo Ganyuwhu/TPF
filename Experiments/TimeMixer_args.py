@@ -37,14 +37,14 @@ def get_site_args():
     parser.add_argument('--down_sampling_method', type=str, default='avg')
     parser.add_argument('--channel_independence', type=bool, default=True)
     parser.add_argument('--e_layers', type=int, default=3)
-    parser.add_argument('--enc_in', type=int, default=1)
-    parser.add_argument('--c_out', type=int, default=1)
+    parser.add_argument('--enc_in', type=int, default=3)
+    parser.add_argument('--c_out', type=int, default=3)
     parser.add_argument('--d_model', type=int, default=64)
     parser.add_argument('--embed', type=str, default='fixed')
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--use_norm', type=int, default=1)
     parser.add_argument('--down_sampling_layers', type=int, default=3)
-    parser.add_argument('--num_class', type=int, default=1)
+    parser.add_argument('--num_class', type=int, default=3)
     parser.add_argument('--decomp_method', type=str, default='moving_avg')
     parser.add_argument('--top_k', type=int, default=5)
     parser.add_argument('--d_ff', type=int, default=128)
@@ -73,18 +73,8 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    pollutants = ['NO2', 'PM2.5', 'O3']
-    static_dims = [26, 26, 7]
-    for i, item in enumerate(pollutants):
-        args.target = [item]
-        args.mission = 'train'
-        args.static_dim = static_dims[i]
-        args.csv_path = project_dir / "Dataset/train.csv"
-        exp_train = Exp(args)
-        exp_train.train()
-        args.mission = 'test'
-        args.csv_path = project_dir / "Dataset/test.csv"
-        args.model_path = project_dir / f'checkpoints/TimeMixer/{item}_TimeMixer_pl336_fl168_rmse_None/checkpoint.pth'
-        exp_test = Exp(args)
-        exp_test.test()
-        args.model_path = None
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/test.csv"
+    args.model_path = project_dir / f'checkpoints/TimeMixer/no2_pm2.5_o3_TimeMixer_pl336_fl168_rmse_None/checkpoint.pth'
+    exp_test = Exp(args)
+    exp_test.test_per_site()

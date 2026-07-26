@@ -91,12 +91,12 @@ if __name__ == "__main__":
     # exp_predictor = Exp(args)
     # exp_predictor.train_predictor()
 
-    args.learning_rate = 1e-4
-    exp_finetune = Exp(args)
-    exp_finetune.train()
+    # args.learning_rate = 1e-4
+    # exp_finetune = Exp(args)
+    # exp_finetune.train()
 
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"
     args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test()
+    exp_test.test_per_site()

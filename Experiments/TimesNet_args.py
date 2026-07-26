@@ -34,15 +34,15 @@ def get_site_args():
     # model
     parser.add_argument('--task_name', type=str, default='long_term_forecast')
     parser.add_argument('--top_k', type=int, default=5)
-    parser.add_argument('--enc_in', type=int, default=1)
+    parser.add_argument('--enc_in', type=int, default=3)
     parser.add_argument('--d_model', type=int, default=32)
     parser.add_argument('--d_ff', type=int, default=32)
     parser.add_argument('--num_kernels', type=int, default=4)
     parser.add_argument('--embed', type=str, default='fixed')
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--e_layers', type=int, default=1)
-    parser.add_argument('--c_out', type=int, default=1)
-    parser.add_argument('--num_class', type=int, default=1)
+    parser.add_argument('--c_out', type=int, default=3)
+    parser.add_argument('--num_class', type=int, default=3)
     parser.add_argument('--static_dim', type=int, default=None)
 
     # exp configs
@@ -67,18 +67,9 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    pollutants = ['NO2', 'PM2.5', 'O3']
-    static_dims = [26, 26, 7]
-    for i, item in enumerate(pollutants):
-        args.target = [item]
-        args.mission = 'train'
-        args.static_dim = static_dims[i]
-        args.csv_path = project_dir / "Dataset/train.csv"
-        exp_train = Exp(args)
-        exp_train.train()
-        args.mission = 'test'
-        args.csv_path = project_dir / "Dataset/test.csv"
-        args.model_path = project_dir / f'checkpoints/TimesNet/{item}_TimesNet_pl336_fl168_rmse_None/checkpoint.pth'
-        exp_test = Exp(args)
-        exp_test.test()
-        args.model_path = None
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/test.csv"
+    args.model_path = project_dir / f'checkpoints/TimesNet/NO2_PM2.5_O3_TimesNet_pl336_fl168_rmse_None/checkpoint.pth'
+    exp_test = Exp(args)
+    exp_test.test_per_site()
+    args.model_path = None

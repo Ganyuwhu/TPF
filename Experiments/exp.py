@@ -11,6 +11,7 @@ from Models.LSTM_Family import Model as LSTM
 from Models.TriPFormer import Model as TriPFormer
 from Models.MoHE import Model as MoHETransformer
 from Models.SwitchTransformer import Model as SwitchTransformer
+from Utils.Tools import scatter_plot
 
 import torch
 import json
@@ -30,10 +31,8 @@ from pathlib import Path
 from datetime import date, datetime, timedelta
 from torch.optim import lr_scheduler
 
-
 warnings.filterwarnings("ignore")  # forbit all warning information
 project_dir = get_project_root()
-
 
 # 站点英文名称
 site_name_EN = {
@@ -44,10 +43,9 @@ site_name_EN = {
     '坪山': "Pingshan"
 }
 
-
 pollutant_id = {
     'NO2': r'$\mathrm{NO_{2}}$',
-    'PM25': r'$\mathrm{PM_{2.5}}$',
+    'PM2.5': r'$\mathrm{PM_{2.5}}$',
     'O3': r'$\mathrm{O_{3}}$'
 }
 
@@ -207,14 +205,14 @@ class ExpMetrics:
         self.datas[key_id] = torch.empty(0)
 
     # 求均值
-    @ property
+    @property
     def mean(self):
         result = {}
         for item, val in self.datas.items():
             result[item] = torch.mean(val, dim=0).detach().cpu()
         return result
 
-    @ property
+    @property
     def cpu(self):
         result = {}
         for item, val in self.datas.items():
@@ -244,7 +242,7 @@ class Exp:
         self.device = self._acquire_device()  # 使用的计算硬件
 
         self.model_type = self.args.model_type  # 模型类型
-        self.model = self.model_supported[self.args.model_type](self.args).float() # 初始化一个模型
+        self.model = self.model_supported[self.args.model_type](self.args).float()  # 初始化一个模型
         self.model_path = self.args.model_path  # 使用已存在的模型，允许该项为None
 
         self.train_epochs = self.args.train_epochs  # 训练主干网络的默认epoch数
@@ -255,7 +253,7 @@ class Exp:
         self.seq_len = self.args.seq_len  # pl
         self.pred_len = self.args.pred_len  # fl
         self.d_model = self.args.d_model if hasattr(self.args, 'd_model') else 0  # 多头注意力每个头的维度
-        self.d_ff = self.args.d_ff if hasattr(self.args, 'd_ff') else 0 # ffn模块中间层的维度
+        self.d_ff = self.args.d_ff if hasattr(self.args, 'd_ff') else 0  # ffn模块中间层的维度
         self.loss_func = self.args.loss_func  # 损失函数
         self.dataset_norm = self.args.dataset_norm  # 是否使用数据集归一化
 
@@ -346,7 +344,7 @@ class Exp:
         self.dataloaders = {}
         print(self.mission)
         if self.mission == 'train':
-            self.datasets["train_dataset"], self.dataloaders['train_dataloader'],\
+            self.datasets["train_dataset"], self.dataloaders['train_dataloader'], \
             self.datasets["vali_dataset"], self.dataloaders["vali_dataloader"] = get_site_dataloader(self.args) \
                 if self.dataset_type == "site" else get_meteo_dataloader(self.args)
         elif self.mission == 'test' or self.mission == 'test_p2p' or self.mission == 'test_importance':
@@ -517,10 +515,10 @@ class Exp:
                 # 反向传播
                 if not_nan:
                     self.backward(
-                            _metrics=current_metrics.datas,
-                            _optim=model_optim,
-                            _scaler=None,
-                            _loss_func=self.loss_func
+                        _metrics=current_metrics.datas,
+                        _optim=model_optim,
+                        _scaler=None,
+                        _loss_func=self.loss_func
                     )
             adjust_learning_rate(model_optim, current_epoch + 1, self.args)
 
@@ -697,7 +695,7 @@ class Exp:
                 'NMB': BN.nmb.to('cpu')
             })
 
-            test_metrics.save_log(result_path/'test_metrics.txt')
+            test_metrics.save_log(result_path / 'test_metrics.txt')
             test_metrics.show()
 
             return test_metrics
@@ -748,14 +746,14 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                classification = torch.log(self.model.classify(batch)+1e-8)
+                classification = torch.log(self.model.classify(batch) + 1e-8)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
                 base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
                 labels = labels.to(classification.device)
 
-                classification = classification.reshape(batch_size*num_pollutants, -1)
-                labels = labels.reshape(batch_size*num_pollutants)
+                classification = classification.reshape(batch_size * num_pollutants, -1)
+                labels = labels.reshape(batch_size * num_pollutants)
                 loss = nn.functional.nll_loss(classification, labels)
                 all_loss.append(loss.item())
 
@@ -811,14 +809,14 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                classification = torch.log(self.model.classify(batch)+1e-8)
+                classification = torch.log(self.model.classify(batch) + 1e-8)
                 batch_size, num_pollutants = classification.shape[0], classification.shape[1]
                 base = torch.tensor(np.arange(num_pollutants)).long()
                 labels = base.repeat(64, 1)
                 labels = labels.to(classification.device)
 
-                classification = classification.reshape(batch_size*num_pollutants, -1)
-                labels = labels.reshape(batch_size*num_pollutants)
+                classification = classification.reshape(batch_size * num_pollutants, -1)
+                labels = labels.reshape(batch_size * num_pollutants)
                 loss = nn.functional.nll_loss(classification, labels)
                 all_loss.append(loss.item())
 
@@ -896,10 +894,10 @@ class Exp:
                 # 反向传播
                 if not_nan:
                     self.backward(
-                            _metrics=current_metrics.datas,
-                            _optim=model_optim,
-                            _scaler=None,
-                            _loss_func=self.loss_func
+                        _metrics=current_metrics.datas,
+                        _optim=model_optim,
+                        _scaler=None,
+                        _loss_func=self.loss_func
                     )
             adjust_learning_rate(model_optim, current_epoch + 1, self.args)
 
@@ -971,14 +969,13 @@ class Exp:
             gp_pair[f'{pollutant}_gt'] = []
             gp_pair[f'{pollutant}_pred'] = []
 
-        bs = self.batch_size
         n_pollutants = len(self.target)
 
         with torch.no_grad():
             for i, batch in enumerate(tqdm(test_dataloader)):
                 batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
                 batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.permute(0, 2, 1)
+                batch_y = batch_y.permute(0, 2, 1).to(self.device)
                 batch_label = batch_label.float().to(self.device)
                 batch_x_stamp = batch_x_stamp.float().to(self.device)
                 batch_label_stamp = batch_label_stamp.float().to(self.device)
@@ -997,23 +994,31 @@ class Exp:
 
                 # 解包batch
                 time_step = 0
+                bs = batch_y.shape[0]
                 for _i in range(bs):
-                    _gt, _predict = batch_y[i, :, time_step % self.pred_len], predict[i, :, time_step % self.pred_len].detach().cpu()
+                    _gt, _predict = batch_y[_i, :, time_step % self.pred_len].detach().cpu(), predict[_i, :, time_step % self.pred_len].detach().cpu()
                     time_step += 1
                     for _j in range(n_pollutants):
                         gp_pair[self.target[_j] + '_gt'].append(_gt[_j].item())
                         gp_pair[self.target[_j] + '_pred'].append(_predict[_j].item())
 
+            for _i, pollutant in enumerate(self.target):
+                predict = gp_pair[f'{pollutant}_pred']
+                gt = gp_pair[f'{pollutant}_gt']
+                pollutant_name = pollutant_id[pollutant]
+                save_pth = result_path / f'{pollutant}.png'
+                scatter_plot(predict, gt, pollutant_name, save_pth, logs=None)
+
             cum = [0] + list(test_dataset.cum_samples)
             for pollutant in self.target:
                 for i, site in enumerate(test_dataset.sites):
                     gt_npy_pth = result_path / f'{pollutant}_{site}_gt.npy'
-                    predict_npy_pth = result_path / f'{pollutant}_{site}_predict.npy'
+                    predict_npy_pth = result_path / f'{pollutant}_{site}_pred.npy'
 
                     time_step = np.arange(cum[i + 1] - cum[i])
                     plt.figure(figsize=(25, 6))
 
-                    predict_site = np.array(gp_pair[pollutant + '_predict'][cum[i]:cum[i + 1]])
+                    predict_site = np.array(gp_pair[pollutant + '_pred'][cum[i]:cum[i + 1]])
                     predict_site[predict_site <= 0] = 0
                     gt_site = np.array(gp_pair[pollutant + '_gt'][cum[i]:cum[i + 1]])
 
