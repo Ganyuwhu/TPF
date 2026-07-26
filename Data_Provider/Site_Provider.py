@@ -167,7 +167,7 @@ class SiteDataset(Dataset):
 
         self.site_samples = []
 
-        self.data = self.read_data()
+        self.read_data()
         self.cum_samples = np.cumsum(self.site_samples)
         self.air_cols = air_cols
         self.static_cols = static_cols
@@ -246,7 +246,6 @@ class SiteDataset(Dataset):
             # 保存目标变量数据
             data = df_site[all_cols].to_numpy(dtype=np.float32)
             data_tensor = torch.tensor(data)  # shape: [T, D]
-            print(data_tensor.shape)
             data_path = default_pt_dir / f"{site}_data.pt"
             torch.save(data_tensor, data_path)
 

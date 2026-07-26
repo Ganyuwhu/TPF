@@ -1,7 +1,7 @@
 from Data_Provider.Site_Provider import get_site_dataloader
 from Data_Provider.Meteo_Provider import get_meteo_dataloader
 from Utils.Tools import EarlyStopping, adjust_learning_rate
-from Utils.MetricsCalculator import Metrics_Calculator, BatchWelford_R, BatchNME_Calculator
+from Utils.MetricsCalculator import Metrics_Calculator, BatchWelford_R, BatchNME_Calculator, Moving_Avg, Moving_Max_Avg
 from Utils.Dir import get_project_root
 
 from Models.AutoFormer import Model as AutoFormer
@@ -33,6 +33,23 @@ from torch.optim import lr_scheduler
 
 warnings.filterwarnings("ignore")  # forbit all warning information
 project_dir = get_project_root()
+
+
+# 站点英文名称
+site_name_EN = {
+    '南澳': "Nan'ao",
+    '横岗': "Henggang",
+    '民治': "Minzhi",
+    '华侨城': "Huaqiaocheng",
+    '坪山': "Pingshan"
+}
+
+
+pollutant_id = {
+    'NO2': r'$\mathrm{NO_{2}}$',
+    'PM25': r'$\mathrm{PM_{2.5}}$',
+    'O3': r'$\mathrm{O_{3}}$'
+}
 
 
 class ExpMetrics:
@@ -210,16 +227,7 @@ class Exp:
         # 1. 获取实验设置
         self.args = args
 
-        # 2. 获取支持的模型
-        self.supported_models = {
-
-        }
-
-        # 3. 解包实验配置
-        self.target = self.args.target  # 目标污染物
-        self.device = self._acquire_device()  # 使用的计算硬件
-
-        self.model_type = self.args.model_type  # 模型类型
+        # 2. 支持的模型列表
         self.model_supported = {
             'AutoFormer': AutoFormer,
             'TimeMixer': TimeMixer,
@@ -229,6 +237,13 @@ class Exp:
             'MoHETransformer': MoHETransformer,
             'SwitchTransformer': SwitchTransformer
         }
+
+        # 3. 解包实验配置
+        self.batch_size = self.args.batch_size
+        self.target = self.args.target  # 目标污染物
+        self.device = self._acquire_device()  # 使用的计算硬件
+
+        self.model_type = self.args.model_type  # 模型类型
         self.model = self.model_supported[self.args.model_type](self.args).float() # 初始化一个模型
         self.model_path = self.args.model_path  # 使用已存在的模型，允许该项为None
 
@@ -915,3 +930,124 @@ class Exp:
                 break
 
         return train_metrics
+
+    def test_per_site(self, **kwargs):
+        print(f"start test_per_site: {self.setting}")
+
+        # 测试结果保存路径
+        result_path = project_dir / 'test_per_site_result' / self.model_type / self.setting
+        result_path.mkdir(parents=True, exist_ok=True)
+
+        # 测试集
+        test_dataset, test_dataloader = self.datasets['test_dataset'], self.dataloaders['test_dataloader']
+
+        # 获取待测试模型
+        if self.model_path is not None:
+            self.model = self._load_model(self.model_path)
+            print(f"成功加载模型：{self.model_path}")
+        self.model = self.model.to(self.device)
+
+        total_params = sum(p.numel() for p in self.model.parameters())
+        print(f'Total parameters: {total_params}')
+
+        # 开始测试
+        self.model.eval()
+
+        if self.args.dataset_norm:
+            with open(str(project_dir / 'normalization_params.json'), 'r') as f:
+                data = json.load(f)
+                means = data['air_means']
+                stds = data['air_stds']
+            air_cols = test_dataset.air_cols
+            indices = [air_cols.index(target) for target in self.args.target]
+            target_means = torch.tensor([means[i] for i in indices], requires_grad=False).to(self.device)
+            target_stds = torch.tensor([stds[i] for i in indices], requires_grad=False).to(self.device)
+            target_means = target_means.unsqueeze(0).unsqueeze(-1)
+            target_stds = target_stds.unsqueeze(0).unsqueeze(-1)
+
+        # 存储真值和预测值
+        gp_pair = {}
+        for pollutant in self.target:
+            gp_pair[f'{pollutant}_gt'] = []
+            gp_pair[f'{pollutant}_pred'] = []
+
+        bs = self.batch_size
+        n_pollutants = len(self.target)
+
+        with torch.no_grad():
+            for i, batch in enumerate(tqdm(test_dataloader)):
+                batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
+                batch_x = batch_x.float().to(self.device)
+                batch_y = batch_y.permute(0, 2, 1)
+                batch_label = batch_label.float().to(self.device)
+                batch_x_stamp = batch_x_stamp.float().to(self.device)
+                batch_label_stamp = batch_label_stamp.float().to(self.device)
+                batch_air = batch_air.float().to(self.device)
+                batch_air_label = batch_air_label.float().to(self.device)
+                batch_static = batch_static.float().to(self.device)
+
+                # 获取模型预测值
+                batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
+                predict = self.model(batch)
+
+                # 整体进行反归一化
+                if self.dataset_norm:
+                    batch_y = batch_y * target_stds + target_means
+                    predict = predict * target_stds + target_means
+
+                # 解包batch
+                time_step = 0
+                for _i in range(bs):
+                    _gt, _predict = batch_y[i, :, time_step % self.pred_len], predict[i, :, time_step % self.pred_len].detach().cpu()
+                    time_step += 1
+                    for _j in range(n_pollutants):
+                        gp_pair[self.target[_j] + '_gt'].append(_gt[_j].item())
+                        gp_pair[self.target[_j] + '_pred'].append(_predict[_j].item())
+
+            cum = [0] + list(test_dataset.cum_samples)
+            for pollutant in self.target:
+                for i, site in enumerate(test_dataset.sites):
+                    gt_npy_pth = result_path / f'{pollutant}_{site}_gt.npy'
+                    predict_npy_pth = result_path / f'{pollutant}_{site}_predict.npy'
+
+                    time_step = np.arange(cum[i + 1] - cum[i])
+                    plt.figure(figsize=(25, 6))
+
+                    predict_site = np.array(gp_pair[pollutant + '_predict'][cum[i]:cum[i + 1]])
+                    predict_site[predict_site <= 0] = 0
+                    gt_site = np.array(gp_pair[pollutant + '_gt'][cum[i]:cum[i + 1]])
+
+                    predict_ma = Moving_Avg(predict_site, 24)
+                    gt_ma = Moving_Avg(gt_site, 24)
+                    avg_time_step = np.arange(predict_ma.shape[-1])
+
+                    # ===== 1. 构造时间轴 =====
+                    start_date = datetime(2023, 1, 15)  # 例如 01-15
+                    num_steps = len(gt_ma[0, 0])
+
+                    # 每个点代表 1 天（24h avg）
+                    dates = [start_date + timedelta(days=i) for i in range(num_steps)]
+
+                    np.save(gt_npy_pth, gt_site)
+                    np.save(predict_npy_pth, predict_site)
+
+                    predict_label = self.model_type if self.model_type != 'Test' else 'Ours'
+                    plt.plot(avg_time_step, np.array(gt_ma[0, 0]), label='GT', color='blue')
+                    plt.plot(avg_time_step, np.array(predict_ma[0, 0]), label=f'{predict_label}', color='red')
+                    plt.xlabel('Date')
+                    plt.ylabel('24 h Average')
+
+                    # ===== 3. 设置 x 轴刻度：每 2 个月一个 =====
+                    ax = plt.gca()
+                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+
+                    # 自动旋转日期，防止重叠
+                    plt.gcf().autofmt_xdate()
+
+                    plt.legend(loc='upper right')
+                    plt.title(f'{pollutant_id[pollutant]}' + f'_{site_name_EN[site]}')
+                    plt.savefig(result_path / f'{pollutant}_{site}.png')
+                    plt.close()
+                    np.save(result_path / f'{self.args.model_type}_{pollutant}_{site}_24avg.npy', predict_ma)
+                    np.save(result_path / f'GT_{pollutant}_{site}_24avg.npy', gt_ma)
