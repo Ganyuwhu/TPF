@@ -1,7 +1,10 @@
+import pandas
 import pandas as pd
 import numpy as np
 import random
 import json
+import os
+import glob
 from pathlib import Path
 
 import torch
@@ -119,6 +122,34 @@ static_mapping = {
            ]
 }
 
+Beijing_sites = {
+    '1001A': '万寿西宫',
+    '1002A': '定陵(对照点)',
+    '1003A': '东四',
+    '1004A': '天坛',
+    '1005A': '农展馆',
+    '1006A': '官园',
+    '1007A': '海淀万柳',
+    '1008A': '顺义新城',
+    '1009A': '怀柔镇',
+    '1010A': '昌平镇',
+    '1011A': '奥体中心',
+    '1012A': '古城'
+}
+
+Shanghai_sites = {
+    '1141A': '普陀',
+    '1142A': '十五厂',
+    '1143A': '虹口',
+    '1144A': '徐汇上师大',
+    '1145A': '杨浦四漂',
+    '1146A': '青浦淀山湖(对照点)',
+    '1147A': '静安监测站',
+    '1148A': '浦东川沙',
+    '1149A': '浦东新区监测站',
+    '1150A': '浦东张江'
+}
+
 
 def wash_data(csv_path: Path, zero_fix: bool = False):
     df_raw = pd.read_csv(csv_path)
@@ -138,6 +169,62 @@ def wash_data(csv_path: Path, zero_fix: bool = False):
     df_raw["wd"] = np.sin(df_raw["wd"] * np.pi / 180)
 
     return df_raw
+
+
+def extract_and_merge_data(input_folder, sites_list, air_list, output_path):
+    csv_files = glob.glob(os.path.join(input_folder, "china_sites_*.csv"))
+
+    if not csv_files:
+        print(f"在 {input_folder} 中没有找到匹配的CSV文件")
+        return
+
+    csv_files.sort()
+
+    extract_dfs = []
+
+    for file_path in csv_files:
+        print(f"正在处理：{file_path}\n")
+        try:
+            df_raw = pandas.read_csv(file_path)
+            df_sites = df_raw.loc[:, ['date', 'hour', 'type'] + sites_list]
+            df_sites['datetime_str'] = df_sites['date'].astype(str) + df_sites['hour'].astype(str).str.zfill(2) + '00'
+            df_sites['datetime'] = pd.to_datetime(df_sites['datetime_str'], format='%Y%m%d%H%M')
+            df_day = df_sites.loc[:, ['datetime', 'type'] + sites_list]
+            df_day = df_day[df_day['type'].isin(air_list)]
+            site_dfs = {}
+            for site in sites_list:
+                temp = df_day[["datetime", "type", site]].copy()
+                temp = temp.rename(columns={site: "value"})
+                temp = temp.pivot(
+                    index="datetime",
+                    columns="type",
+                    values="value"
+                ).reset_index()
+
+                temp = temp.sort_values("datetime")
+                temp.insert(0, "站点", site)
+                temp['站点'] = temp['站点'].replace(site, Shanghai_sites[site])
+                site_dfs[site] = temp
+
+            all_station_df = pd.concat(
+                site_dfs.values(),
+                ignore_index=True
+            )
+            all_station_df.rename(columns={'datetime': 'date'}, inplace=True)
+            extract_dfs.append(all_station_df)
+        except:
+            pass
+
+    all_df = pd.concat(
+        extract_dfs,
+        ignore_index=True
+    )
+
+    all_df = all_df.sort_values(
+        by=["站点", "date"]
+    ).reset_index(drop=True)
+
+    all_df.to_csv(output_path, index=False)
 
 
 class SiteDataset(Dataset):
@@ -419,6 +506,9 @@ def get_site_dataloader(args):
 
 
 if __name__ == "__main__":
-    ds = SiteDataset(csv_path=get_site_data_dir() / "test.csv", target=["NO2", "PM2.5", "O3"], mission="test")
-    x, label, y, x_time_stamp, label_time_stamp, air, air_label, static = ds[0]
-    print(x.shape, label.shape, y.shape, x_time_stamp.shape, label_time_stamp.shape, air.shape, air_label.shape, static.shape)
+    input_folder = project_dir / 'Dataset/china_sites/站点_20230101-20231231/站点_20230101-20231231'
+    # sites_list = ['1001A', '1002A', '1003A', '1004A', '1005A', '1006A', '1007A', '1008A', '1009A', '1010A', '1011A', '1012A']
+    sites_list = ['1141A', '1142A', '1143A', '1144A', '1145A', '1146A', '1147A', '1148A', '1149A', '1150A']
+    air_list = ['SO2', 'NO2', 'CO', 'O3', 'PM10', 'PM2.5']
+    output_path = project_dir / 'Dataset/20230101-20231231Shanghai.csv'
+    extract_and_merge_data(input_folder, sites_list, air_list, output_path)
