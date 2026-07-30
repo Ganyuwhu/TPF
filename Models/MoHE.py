@@ -1351,9 +1351,9 @@ class Model(nn.Module):
             cross_vars = configs.cross_vars
         )
 
-    def forward(self, input_datas):
+    def forward(self, input_datas, **kwargs):
         x, label, y, x_time_stamp, label_time_stamp, air, air_label, static = input_datas
-        output = self.model(x, air, None)[0]
+        output = self.model(x, x_time_stamp, None)[0]
         return output.permute(0, 2, 1)
 
 

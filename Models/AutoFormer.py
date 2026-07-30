@@ -453,7 +453,7 @@ class Model(nn.Module):
             static_dim=config.static_dim
         )
 
-    def forward(self, input_datas):
+    def forward(self, input_datas, **kwargs):
         return self.model(input_datas)
 
 

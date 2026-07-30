@@ -353,6 +353,9 @@ class Exp:
         elif self.mission == 'predict':
             self.datasets['predict_dataset'], self.dataloaders['predict_dataloader'] = get_site_dataloader(self.args) \
                 if self.dataset_type == "site" else get_meteo_dataloader(self.args)
+        elif self.mission == 'degenerate':
+            self.datasets['degenerate_dataset'], self.dataloaders['degenerate_dataloader'] = get_site_dataloader(self.args) \
+                if self.dataset_type == "site" else get_meteo_dataloader(self.args)
         else:
             raise ValueError('Mission should be "train", "test", "test_p2p" or "predict".')
 
@@ -608,7 +611,10 @@ class Exp:
         result_path.mkdir(parents=True, exist_ok=True)
 
         # 测试集
-        test_dataset, test_dataloader = self.datasets['test_dataset'], self.dataloaders['test_dataloader']
+        if self.mission == 'test':
+            test_dataset, test_dataloader = self.datasets['test_dataset'], self.dataloaders['test_dataloader']
+        else:
+            test_dataset, test_dataloader = self.datasets['degenerate_dataset'], self.dataloaders['degenerate_dataloader']
 
         # 测试集指标
         test_metrics, batch_metrics = ExpMetrics(self.target), ExpMetrics(self.target, len(test_dataloader))
@@ -652,7 +658,7 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                predict = self.model(batch)
+                predict = self.model(batch) if self.mission == 'test' else self.model(batch, target_only=True)
 
                 # 整体进行反归一化
                 if self.dataset_norm:
@@ -985,7 +991,7 @@ class Exp:
 
                 # 获取模型预测值
                 batch = batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static
-                predict = self.model(batch)
+                predict = self.model(batch) if self.mission == 'test' else self.model(batch, target_only=True)
 
                 # 整体进行反归一化
                 if self.dataset_norm:

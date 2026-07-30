@@ -54,8 +54,8 @@ def get_site_args():
     parser.add_argument("--last_dim", type=int, default=256)
     parser.add_argument("--n_vars", type=int, default=3)
     parser.add_argument("--init_model", type=int, default=256)
-    parser.add_argument("--no_air", type=bool, default=False)
-    parser.add_argument("--no_static", type=bool, default=False)
+    parser.add_argument("--no_air", type=bool, default=True)
+    parser.add_argument("--no_static", type=bool, default=True)
     parser.add_argument("--norm_type", type=bool, default="rms")
     parser.add_argument("--ms_type", type=str, default='self')
     parser.add_argument("--drop_rate", type=float, default=0.3)
@@ -91,12 +91,17 @@ if __name__ == "__main__":
     # exp_predictor = Exp(args)
     # exp_predictor.train_predictor()
 
-    # args.learning_rate = 1e-4
-    # exp_finetune = Exp(args)
-    # exp_finetune.train()
+    args.learning_rate = 1e-4
+    exp_finetune = Exp(args)
+    exp_finetune.train()
 
     args.mission = 'test'
     args.csv_path = project_dir / "Dataset/test.csv"
     args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test_per_site()
+    exp_test.test()
+
+    args.mission = 'degenerate'
+    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
+    exp_test = Exp(args)
+    exp_test.test()

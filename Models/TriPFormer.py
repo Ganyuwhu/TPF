@@ -227,9 +227,9 @@ class TriPFormer(nn.Module):
 
         return x
 
-    def pack_forward(self, input_datas):
+    def pack_forward(self, input_datas, target_only=False):
         x, _, _, time_stamp, _, air, _, static = input_datas
-        prediction = self.forward(x, time_stamp, air, static)
+        prediction = self.forward(x, time_stamp, None, None) if target_only else self.forward(x, time_stamp, air, static)
         return prediction
 
 
@@ -271,8 +271,8 @@ class Model(nn.Module):
             separate=configs.separate
         )
 
-    def forward(self, input_datas):
-        return self.model.pack_forward(input_datas)
+    def forward(self, input_datas, **kwargs):
+        return self.model.pack_forward(input_datas, kwargs.get('target_only', False))
 
     def classify(self, input_datas):
         return self.model.classify(input_datas)

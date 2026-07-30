@@ -59,7 +59,7 @@ def get_site_args():
     parser.add_argument('--c_att_mode', type=str, default='full', choices=['full', 'partial'],
                         help='Cross attention mode')
     parser.add_argument('--n_vars', type=int, default=3, help='Number of variables')
-    parser.add_argument('--cross_vars', type=int, default=5, help='Number of cross variables')
+    parser.add_argument('--cross_vars', type=int, default=4, help='Number of cross variables')
 
     # exp configs
     parser.add_argument('--mission', type=str, default='train')
@@ -90,12 +90,12 @@ if __name__ == "__main__":
     # exp_predictor = Exp(args)
     # exp_predictor.train_predictor()
     #
-    # args.learning_rate = 1e-4
-    # exp_finetune = Exp(args)
-    # exp_finetune.train()
+    args.learning_rate = 1e-4
+    exp_finetune = Exp(args)
+    exp_finetune.train()
 
-    args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/test.csv"
+    args.mission = 'degenerate'
+    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
     args.model_path = project_dir / f'checkpoints/MoHETransformer/NO2_PM2.5_O3_MoHETransformer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test_per_site()
+    exp_test.test()

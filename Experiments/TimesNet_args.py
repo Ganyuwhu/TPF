@@ -43,7 +43,7 @@ def get_site_args():
     parser.add_argument('--e_layers', type=int, default=1)
     parser.add_argument('--c_out', type=int, default=3)
     parser.add_argument('--num_class', type=int, default=3)
-    parser.add_argument('--static_dim', type=int, default=None)
+    parser.add_argument('--static_dim', type=int, default=26)
 
     # exp configs
     parser.add_argument('--mission', type=str, default='train')
@@ -55,7 +55,7 @@ def get_site_args():
     parser.add_argument('--model_type', type=str, default='TimesNet')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--train_epochs', type=int, default=10)
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
+    parser.add_argument('--learning_rate', type=float, default=1e-5)
     parser.add_argument('--dataset_type', type=str, default='site')
     parser.add_argument('--checkpoints_path', type=Path, default=project_dir / 'checkpoints')
     parser.add_argument('--loss_func', type=str, default='rmse')
@@ -76,4 +76,3 @@ if __name__ == "__main__":
     args.model_path = project_dir / f'checkpoints/TimesNet/NO2_PM2.5_O3_TimesNet_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()
-    exp_test.test_per_site()

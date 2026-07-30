@@ -361,7 +361,7 @@ class SwitchTransformer(nn.Module):
             dec_out = dec_out.permute(0, 2, 1)
         return dec_out
 
-    def pack_forward(self, input_datas):
+    def pack_forward(self, input_datas, **kwargs):
         x, _, _, time_stamp, _, air, _, static = input_datas
         return self.forward(x)
 
@@ -382,7 +382,7 @@ class Model(nn.Module):
             depth=configs.depth
         )
 
-    def forward(self, input_datas):
+    def forward(self, input_datas, **kwargs):
         return self.model.pack_forward(input_datas)
 
 

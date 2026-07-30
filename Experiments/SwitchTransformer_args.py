@@ -74,8 +74,8 @@ if __name__ == "__main__":
     # exp_finetune = Exp(args)
     # exp_finetune.train()
 
-    args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/test.csv"
+    args.mission = 'degenerate'
+    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
     args.model_path = project_dir / f'checkpoints/SwitchTransformer/NO2_PM2.5_O3_SwitchTransformer_pl336_fl168_rmse_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test_per_site()
+    exp_test.test()

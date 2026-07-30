@@ -287,7 +287,7 @@ class Model(nn.Module):
             enc_in=configs.enc_in
         )
 
-    def forward(self, input_datas):
+    def forward(self, input_datas, **kwargs):
         return self.model(input_datas)
 
 
