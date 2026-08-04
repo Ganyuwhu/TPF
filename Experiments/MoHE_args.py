@@ -35,11 +35,11 @@ def get_site_args():
     parser.add_argument('--multi_modal', type=bool, default=True, help='Enable multi-modal mode')
     parser.add_argument('--is_causal', type=bool, default=False, help='Use causal attention')
     parser.add_argument('--n_layer', type=int, default=3, help='Number of transformer layers')
-    parser.add_argument('--d_model', type=int, default=384, help='Model hidden dimension')
-    parser.add_argument('--block_size', type=int, default=672, help='Block size for attention')
+    parser.add_argument('--d_model', type=int, default=168, help='Model hidden dimension')
+    parser.add_argument('--block_size', type=int, default=336, help='Block size for attention')
     parser.add_argument('--n_heads', type=int, default=6, help='Number of attention heads')
     parser.add_argument('--n_kv_heads', type=int, default=3, help='Number of key/value heads (GQA)')
-    parser.add_argument('--d_ff', type=int, default=768, help='Feed-forward network dimension')
+    parser.add_argument('--d_ff', type=int, default=336, help='Feed-forward network dimension')
     parser.add_argument('--dropout', type=float, default=0.2, help='Dropout rate')
     parser.add_argument('--drop_path', type=float, default=0.3, help='Stochastic depth drop rate')
     parser.add_argument('--norm_type', type=str, default='rms', choices=['rms', 'layer'], help='Normalization type')
@@ -83,19 +83,15 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # exp_classification = Exp(args)
-    # exp_classification.train_classification()
+    # args.mission = 'train'
+    # args.csv_path = project_dir / "Dataset/2022.csv"
     #
-    # args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
-    # exp_predictor = Exp(args)
-    # exp_predictor.train_predictor()
-    #
-    args.learning_rate = 1e-4
-    exp_finetune = Exp(args)
-    exp_finetune.train()
+    # args.learning_rate = 1e-5
+    # exp_finetune = Exp(args)
+    # exp_finetune.train()
 
-    args.mission = 'degenerate'
-    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
-    args.model_path = project_dir / f'checkpoints/MoHETransformer/NO2_PM2.5_O3_MoHETransformer_pl336_fl168_rmse_None/checkpoint.pth'
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/2023.csv"
+    args.model_path = project_dir / f'checkpoints/MoHETransformer/NO2_PM2.5_O3_MoHETransformer_pl336_fl168_rmse_generate_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()

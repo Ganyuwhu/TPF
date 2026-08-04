@@ -243,8 +243,9 @@ class multi_TCN_BiLSTM_DMAttention(nn.Module):
         self.static_dim = static_dim
         self.enc_in = enc_in
 
-        self.static_embedding = StaticTimeEmbedding(static_dim)
-        self.static_linear = nn.Linear(static_dim, enc_in)
+        if self.static_dim is not None:
+            self.static_embedding = StaticTimeEmbedding(static_dim)
+            self.static_linear = nn.Linear(static_dim, enc_in)
 
         self.module_list = nn.ModuleList()
         for pollutant in target:

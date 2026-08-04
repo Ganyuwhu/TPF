@@ -42,7 +42,7 @@ def get_site_args():
     parser.add_argument('--output_size', type=tuple, default=(64, 64, 32))
     parser.add_argument('--kernel_size', type=tuple, default=(3, 5, 3))
     parser.add_argument('--dilation', type=tuple, default=(1, 2, 4))
-    parser.add_argument('--static_dim', type=int, default=26)
+    parser.add_argument('--static_dim', type=int, default=None)
     parser.add_argument('--enc_in', type=int, default=3)
 
     # exp configs
@@ -67,14 +67,12 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # pollutants = ['NO2', 'PM2.5', 'O3']
-    # args.target = pollutants
     # args.mission = 'train'
-    # args.csv_path = project_dir / "Dataset/train.csv"
+    # args.csv_path = project_dir / "Dataset/2022.csv"
     # exp_train = Exp(args)
     # exp_train.train()
     args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/test.csv"
-    args.model_path = project_dir / f'checkpoints/LSTM/NO2_PM2.5_O3_LSTM_pl336_fl168_rmse_None/checkpoint.pth'
+    args.csv_path = project_dir / "Dataset/2023.csv"
+    args.model_path = project_dir / f'checkpoints/LSTM/NO2_PM2.5_O3_LSTM_pl336_fl168_rmse_generate_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test_per_site()
+    exp_test.test()

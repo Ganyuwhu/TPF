@@ -1,3 +1,5 @@
+import torch
+
 from Layers.Embed import PatchEmbedding, StaticTimeEmbedding
 from Layers.AttentionFamily import SelfAttentionLayer, CrossAttentionLayer
 from Models.MoHE import *
@@ -6,7 +8,7 @@ from timm.layers import DropPath
 
 class Preprocessing(nn.Module):
     def __init__(self, seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim=4,
-                 embed_dim=64, embed_type='fixed'):
+                 embed_dim=64, embed_type='fixed', no_air=False, no_static=False):
         super().__init__()
         self.seq_len = seq_len
         self.d_model = d_model
@@ -19,28 +21,38 @@ class Preprocessing(nn.Module):
         self.pae_static = PatchEmbedding(d_model, patch_len, stride, padding, dropout, dims)
         self.pae_time = PatchEmbedding(d_model, patch_len, stride, padding, dropout, dims)
 
+        self.no_air = no_air
+        self.no_static = no_static
+
     def forward(self, x, time_stamp, air, static):
         bs = x.shape[0]
         # 1. static embedding
-        if static is not None:
+        if not self.no_static:
             static = self.STE(static, time_stamp)
 
         # 2. Patch all time series
         x = self.pae_x(x.clone() if x.requires_grad else x)  # [bs*n_vars, n_patches, d_model]
         _, npa, d = x.shape
         x = x.reshape(bs, -1, npa, d)
-        if air is not None:
+        if not self.no_air:
             air = self.pae_air(air)  # [bs*air_vars, n_patches, d_model]
             air = air.reshape(bs, -1, npa, d)
-        if static is not None:
+        if not self.no_static:
             static = self.pae_static(static)  # [bs*static_vars, n_patches, d_model]
             static = static.reshape(bs, -1, npa, d)
 
         time_stamp = self.pae_time(time_stamp)
         time_stamp = time_stamp.reshape(bs, -1, npa, d)
 
-        return x, time_stamp, air, static
+        if self.no_air:
+            with torch.no_grad():
+                air = None
 
+        if self.no_static:
+            with torch.no_grad():
+                static = None
+
+        return x, time_stamp, air, static
 
 
 class ModuleSelector(nn.Module):
@@ -201,7 +213,7 @@ class TriPFormer(nn.Module):
         self.n_pollutants = n_pollutants
         self.separate = separate
         self.PRE = Preprocessing(seq_len, d_model, patch_len, stride, static_dim, padding, dropout, dims, time_dim,
-                                 embed_dim, embed_type)
+                                 embed_dim, embed_type, no_air, no_static)
         self.Classifier = ModuleSelector(n_heads, attn_type, mask_flag, scale, tau, delta, attention_dropout,
                                          output_attention, last_dim, d_model, n_pollutants,
                                          init_model, no_air, no_static, ms_type, **kwargs)

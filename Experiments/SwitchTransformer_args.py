@@ -19,7 +19,7 @@ def get_site_args():
 
     # 通用部分
     parser.add_argument('--csv_path', type=str, default=project_dir / "Dataset/train.csv")
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--freq', type=str, default='h')
     parser.add_argument('--target', type=list_from_string, default=['NO2', 'PM2.5', 'O3'])
     parser.add_argument('--seq_len', type=int, default=336)
@@ -63,19 +63,15 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # exp_classification = Exp(args)
-    # exp_classification.train_classification()
-    #
-    # args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_None/checkpoint.pth'
-    # exp_predictor = Exp(args)
-    # exp_predictor.train_predictor()
+    args.mission = 'train'
+    args.csv_path = project_dir / "Dataset/2022.csv"
 
-    # args.learning_rate = 1e-4
-    # exp_finetune = Exp(args)
-    # exp_finetune.train()
+    args.learning_rate = 1e-4
+    exp_finetune = Exp(args)
+    exp_finetune.train()
 
-    args.mission = 'degenerate'
-    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
-    args.model_path = project_dir / f'checkpoints/SwitchTransformer/NO2_PM2.5_O3_SwitchTransformer_pl336_fl168_rmse_None/checkpoint.pth'
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/2023.csv"
+    args.model_path = project_dir / f'checkpoints/SwitchTransformer/NO2_PM2.5_O3_SwitchTransformer_pl336_fl168_rmse_generate_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()

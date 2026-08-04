@@ -73,12 +73,15 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # args.mission = 'train'
-    # args.csv_path = project_dir / "Dataset/train.csv"
-    # exp_train = Exp(args)
-    # exp_train.train()
-    args.mission = 'degenerate'
-    args.csv_path = project_dir / "Dataset/20230101-20231231Shanghai.csv"
-    args.model_path = project_dir / f'checkpoints/TimeMixer/NO2_PM2.5_O3_TimeMixer_pl336_fl168_rmse_None/checkpoint.pth'
+    args.mission = 'train'
+    args.csv_path = project_dir / "Dataset/2022.csv"
+
+    args.learning_rate = 1e-4
+    exp_finetune = Exp(args)
+    exp_finetune.train()
+
+    args.mission = 'test'
+    args.csv_path = project_dir / "Dataset/2023.csv"
+    args.model_path = project_dir / f'checkpoints/TimeMixer/NO2_PM2.5_O3_TimeMixer_pl336_fl168_rmse_generate_None/checkpoint.pth'
     exp_test = Exp(args)
     exp_test.test()

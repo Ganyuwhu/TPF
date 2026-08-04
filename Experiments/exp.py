@@ -265,13 +265,17 @@ class Exp:
 
         # 4. 注册实验名称
         target_str = '_'.join(args.target)
+        csv_name = os.path.basename(args.csv_path)
+        name, extension = os.path.splitext(csv_name)
+        data_type = 'generate' if str.isdigit(name) else 'Shenzhen'
         date_str = date.today().strftime("%Y-%m-%d") if args.date == "None" else args.date
-        self.setting = "{}_{}_pl{}_fl{}_{}_{}".format(
+        self.setting = "{}_{}_pl{}_fl{}_{}_{}_{}".format(
             target_str,
             self.model_type,
             self.seq_len,
             self.pred_len,
             self.loss_func,
+            data_type,
             date_str
         )
 

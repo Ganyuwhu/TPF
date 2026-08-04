@@ -6,6 +6,7 @@ import json
 import os
 import glob
 from pathlib import Path
+from collections import Counter
 
 import torch
 from tqdm import tqdm
@@ -128,37 +129,13 @@ static_mapping = {
            ]
 }
 
-Beijing_sites = {
-    '1001A': '万寿西宫',
-    '1002A': '定陵(对照点)',
-    '1003A': '东四',
-    '1004A': '天坛',
-    '1005A': '农展馆',
-    '1006A': '官园',
-    '1007A': '海淀万柳',
-    '1008A': '顺义新城',
-    '1009A': '怀柔镇',
-    '1010A': '昌平镇',
-    '1011A': '奥体中心',
-    '1012A': '古城'
-}
-
-Shanghai_sites = {
-    '1141A': '普陀',
-    '1142A': '十五厂',
-    '1143A': '虹口',
-    '1144A': '徐汇上师大',
-    '1145A': '杨浦四漂',
-    '1146A': '青浦淀山湖(对照点)',
-    '1147A': '静安监测站',
-    '1148A': '浦东川沙',
-    '1149A': '浦东新区监测站',
-    '1150A': '浦东张江'
-}
+df = pd.read_csv(project_dir / 'Dataset/sites list from 2022.02.13.csv')
+all_sites = dict(zip(df['监测点编码'], df['监测点名称']))
 
 
 def wash_data(csv_path: Path, zero_fix: bool = False):
     df_raw = pd.read_csv(csv_path)
+
     df_raw = df_raw.rename(columns={"PM25": "PM2.5"})
 
     df_raw.loc[(df_raw["P"] < 800) | (df_raw["P"] > 1100), "P"] = np.nan
@@ -187,17 +164,39 @@ def wash_degenerate_data(csv_path: Path, zero_fix: bool = False):
     return df_raw
 
 
+def extract_sites(file_list):
+    common_sites = None
+    for file in file_list:
+        df = pd.read_csv(file)
+        sites = set(df['监测点编码'].dropna())  # 获取当前文件的站点集合
+
+        if common_sites is None:
+            common_sites = sites
+        else:
+            common_sites = common_sites.intersection(sites)  # 取交集
+    return common_sites
+
+
 def extract_and_merge_data(input_folder, sites_list, air_list, output_path):
     csv_files = glob.glob(os.path.join(input_folder, "china_sites_*.csv"))
-
     if not csv_files:
         print(f"在 {input_folder} 中没有找到匹配的CSV文件")
         return
 
     csv_files.sort()
 
-    extract_dfs = []
+    if sites_list is None:
+        all_columns_from_4th = []
 
+        for file_path in csv_files:
+            df = pd.read_csv(file_path)
+            columns_from_4th = df.columns[3:].tolist()
+            all_columns_from_4th.extend(columns_from_4th)
+        column_counts = Counter(all_columns_from_4th)
+        num_files = len(csv_files)
+        sites_list = [col for col, count in column_counts.items() if count == num_files]
+
+    extract_dfs = []
     for file_path in csv_files:
         print(f"正在处理：{file_path}\n")
         try:
@@ -219,7 +218,7 @@ def extract_and_merge_data(input_folder, sites_list, air_list, output_path):
 
                 temp = temp.sort_values("datetime")
                 temp.insert(0, "站点", site)
-                temp['站点'] = temp['站点'].replace(site, Shanghai_sites[site])
+                temp['站点'] = temp['站点'].replace(site, all_sites[site])
                 site_dfs[site] = temp
 
             all_station_df = pd.concat(
@@ -229,7 +228,7 @@ def extract_and_merge_data(input_folder, sites_list, air_list, output_path):
             all_station_df.rename(columns={'datetime': 'date'}, inplace=True)
             extract_dfs.append(all_station_df)
         except:
-            pass
+            print("error")
 
     all_df = pd.concat(
         extract_dfs,
@@ -258,6 +257,8 @@ class SiteDataset(Dataset):
                  label: bool = False
                  ):
         self.csv_path = csv_path
+        csv_name = os.path.basename(self.csv_path)
+        self.name, extension = os.path.splitext(csv_name)
         self.seq_len = seq_len
         self.label_len = label_len
         self.pred_len = pred_len
@@ -279,42 +280,73 @@ class SiteDataset(Dataset):
         self.label = label
 
     def read_data(self):
-        df_raw = wash_data(self.csv_path, self.zero_fix) if self.mission != "degenerate" else wash_degenerate_data(self.csv_path, self.zero_fix)
+        if self.sites is None:
+            if Path.exists((project_dir / f'Logs/{self.name}.txt')):
+                with open(project_dir / f'Logs/{self.name}.txt', 'r', encoding='utf-8') as f:
+                    self.sites = f.readlines()
+                    self.sites = [line.strip() for line in self.sites]
+            else:
+                self.sites = None
 
-        all_sites = df_raw["站点"].unique()
-        self.sites = all_sites if self.sites is None else self.sites
+        if str.isdigit(self.name):
+            df_raw = wash_degenerate_data(self.csv_path, self.zero_fix)
+            if self.sites is None:
+                self.sites = all_sites.values()
+            else:
+                sites_name = []
+                for site in self.sites:
+                    sites_name.append(all_sites[site])
+                self.sites = sites_name
+        else:
+            df_raw = wash_data(self.csv_path, self.zero_fix)
+            sites = df_raw["站点"].unique()
+            self.sites = sites if self.sites is None else self.sites
+
         self.target = ["NO2", "O3", "PM2.5"] if self.target is None else self.target
 
         for site in self.sites:
             self.site_samples.append((df_raw["站点"] == site).sum() - self.label_len - self.pred_len - self.seq_len + 1)
 
-        if not Path.exists(project_dir / f'Dataset/Site_pt/{self.mission}_sites.json'):
+        if not Path.exists(project_dir / f'Dataset/Site_pt/{self.name}_sites.json'):
             self.to_pt(df_raw, sites=self.sites)
 
-        if not Path.exists(project_dir / 'normalization_params.json'):
-            if self.mission == "train":
-                air_means = df_raw[air_cols].mean(skipna=True)
-                air_stds = df_raw[air_cols].std(skipna=True)
-                df_raw[air_cols] = (df_raw[air_cols] - air_means) / air_stds
-                static_maxs = df_raw[static_cols].max(skipna=True)
-                static_mins = df_raw[static_cols].min(skipna=True)
-                df_raw[static_cols] = (df_raw[static_cols] - static_mins) / (static_maxs - static_mins)
-                normalization_params = {
-                    "air_means": air_means.to_list(),
-                    "air_stds": air_stds.to_list(),
-                    "static_maxs": static_maxs.to_list(),
-                    "static_mins": static_mins.to_list()
-                }
-                with open(project_dir / 'normalization_params.json', 'w', encoding='utf-8') as f:
-                    json.dump(normalization_params, f, ensure_ascii=False, indent=2)
+        if str.isdigit(self.name):
+            if not Path.exists(project_dir / 'degenerate_normalization_params.json'):
+                if self.mission == "train":
+                    means = df_raw[degenerate_cols].mean(skipna=True)
+                    stds = df_raw[degenerate_cols].std(skipna=True)
+                    df_raw[degenerate_cols] = (df_raw[degenerate_cols] - means) / stds
+                    normalization_params = {
+                        "air_means": means.to_list(),
+                        "air_stds": stds.to_list()
+                    }
+                    with open(project_dir / 'degenerate_normalization_params.json', 'w', encoding='utf-8') as f:
+                        json.dump(normalization_params, f, ensure_ascii=False, indent=2)
+        else:
+            if not Path.exists(project_dir / 'normalization_params.json'):
+                if self.mission == "train":
+                    air_means = df_raw[air_cols].mean(skipna=True)
+                    air_stds = df_raw[air_cols].std(skipna=True)
+                    df_raw[air_cols] = (df_raw[air_cols] - air_means) / air_stds
+                    static_maxs = df_raw[static_cols].max(skipna=True)
+                    static_mins = df_raw[static_cols].min(skipna=True)
+                    df_raw[static_cols] = (df_raw[static_cols] - static_mins) / (static_maxs - static_mins)
+                    normalization_params = {
+                        "air_means": air_means.to_list(),
+                        "air_stds": air_stds.to_list(),
+                        "static_maxs": static_maxs.to_list(),
+                        "static_mins": static_mins.to_list()
+                    }
+                    with open(project_dir / 'normalization_params.json', 'w', encoding='utf-8') as f:
+                        json.dump(normalization_params, f, ensure_ascii=False, indent=2)
 
     def __len__(self):
         return sum(self.site_samples)
 
     def to_pt(self, df_raw, date_column='date', site_column='站点', sites=None, freq='h'):
-        default_pt_dir = project_dir / f"Dataset/Site_pt/{self.mission}"
+        default_pt_dir = project_dir / f"Dataset/Site_pt/{self.name}"
         default_pt_dir.mkdir(parents=True, exist_ok=True)
-        all_cols = air_cols + static_cols if self.mission != 'degenerate' else degenerate_cols
+        all_cols = degenerate_cols if str.isdigit(self.name) else air_cols + static_cols
         index_map = {}
         for site in sites:
             df_site = df_raw[df_raw[site_column] == site]
@@ -337,39 +369,70 @@ class SiteDataset(Dataset):
                 "stamp_path": str(stamp_path)
             }
 
-        with open(str(project_dir / f"Dataset/Site_pt/{self.mission}_sites.json"), "w", encoding="utf-8") as f:
+        with open(str(project_dir / f"Dataset/Site_pt/{self.name}_sites.json"), "w", encoding="utf-8") as f:
             json.dump(index_map, f, ensure_ascii=False, indent=2)
 
         print("已按站点将数据分隔......")
         print(f"- {len(sites)} 个站点 .pt 文件")
-        print(f"- 索引文件：{project_dir / f'Dataset/Site_pt/{self.mission}_sites.json'}")
+        print(f"- 索引文件：{project_dir / f'Dataset/Site_pt/{self.name}_sites.json'}")
 
     def __getitem__(self, index):
-        if self.mission != 'degenerate':
-            site_index = np.searchsorted(self.cum_samples, index, side='right')
-            if site_index > 0:
-                local_index = index - self.cum_samples[site_index - 1]
+        site_index = np.searchsorted(self.cum_samples, index, side='right')
+        if site_index > 0:
+            local_index = index - self.cum_samples[site_index - 1]
+        else:
+            local_index = index
+        site = self.sites[site_index]
+        site_pt = project_dir / f"Dataset/Site_pt/{self.name}/{site}_data.pt"
+        stamp_pt = project_dir / f"Dataset/Site_pt/{self.name}/{site}_stamp.pt"
+        site_data = torch.load(site_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
+        time_stamp = torch.load(stamp_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
+
+        if str.isdigit(self.name):
+            all_cols = degenerate_cols
+            target_idx = [all_cols.index(col) for col in self.target]
+            target_data = site_data[:, target_idx]
+            if self.label:
+                x = target_data[:self.seq_len]
+                label = target_data[self.seq_len: self.seq_len + self.label_len]
+                y = target_data[self.seq_len + self.label_len:]
+                x_time_stamp = time_stamp[:self.seq_len]
+                label_time_stamp = time_stamp[self.seq_len: self.seq_len + self.label_len]
+                air = torch.zeros_like(x)
+                air_label = torch.zeros_like(x)
+                static = torch.zeros_like(x)
             else:
-                local_index = index
+                x = target_data[self.label_len:self.label_len + self.seq_len]
+                label = target_data[:self.label_len]
+                y = target_data[self.label_len + self.seq_len:]
+                x_time_stamp = time_stamp[self.label_len:self.label_len + self.seq_len]
+                label_time_stamp = time_stamp[:self.label_len]
+                air = torch.zeros_like(x)
+                air_label = torch.zeros_like(x)
+                static = torch.zeros_like(x)
 
-            # 1. Raw data
-            site = self.sites[site_index]
-            site_pt = project_dir / f"Dataset/Site_pt/{self.mission}/{site}_data.pt"
-            stamp_pt = project_dir / f"Dataset/Site_pt/{self.mission}/{site}_stamp.pt"
-            site_data = torch.load(site_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
-            time_stamp = torch.load(stamp_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
+            if self.normalize:
+                normalization_params = json.load(open(project_dir / 'degenerate_normalization_params.json', 'r', encoding='utf-8'))
+                air_means = torch.tensor(normalization_params["air_means"])
+                air_stds = torch.tensor(normalization_params["air_stds"])
 
-            # 2. Get index
+                x_indices = [degenerate_cols.index(col) for col in self.target]
+
+                x_means = air_means[x_indices]
+                x_stds = air_stds[x_indices]
+
+                x = (x - x_means) / x_stds
+                label = (label - x_means) / x_stds
+                y = (y - x_means) / x_stds
+        else:
             all_cols = self.air_cols + self.static_cols
             target_idx = [all_cols.index(col) for col in self.target]
             air_idx = [all_cols.index(col) for col in self.air_cols if col not in self.target]
             static_idx = [all_cols.index(col) for col in self.static_cols]
 
-            # 3. Turn data to numpy
             target_data = site_data[:, target_idx]
             air_data = site_data[:, air_idx]
             static_data = site_data[:, static_idx]
-
             if self.label:
                 x = target_data[:self.seq_len]
                 label = target_data[self.seq_len: self.seq_len + self.label_len]
@@ -380,12 +443,12 @@ class SiteDataset(Dataset):
                 air_label = air_data[self.seq_len: self.seq_len + self.label_len]
                 static = static_data[0]
             else:
-                x = target_data[self.label_len:self.label_len+self.seq_len]
+                x = target_data[self.label_len:self.label_len + self.seq_len]
                 label = target_data[:self.label_len]
-                y = target_data[self.label_len+self.seq_len:]
-                x_time_stamp = time_stamp[self.label_len:self.label_len+self.seq_len]
+                y = target_data[self.label_len + self.seq_len:]
+                x_time_stamp = time_stamp[self.label_len:self.label_len + self.seq_len]
                 label_time_stamp = time_stamp[:self.label_len]
-                air = air_data[self.label_len:self.label_len+self.seq_len]
+                air = air_data[self.label_len:self.label_len + self.seq_len]
                 air_label = air_data[:self.label_len]
                 static = static_data[0]
 
@@ -411,74 +474,16 @@ class SiteDataset(Dataset):
                 air = (air - air_means) / air_stds
                 air_label = (air_label - air_means) / air_stds
                 static = (static - static_mins) / (static_maxs - static_mins)
-                static = static[self.static_index]
-
-            """
-                x: [seq_len, n_vars]
-                label: [label_len, n_vars]
-                y: [pred_len, n_vars]
-                x_time_stamp: [seq_len, 4]
-                label_time_stamp: [label_len, 4]
-                air: [seq_len, air_vars]
-                air_label: [label_len, air_vars]
-                static: [static_vars, ]            
-            """
-        else:
-            site_index = np.searchsorted(self.cum_samples, index, side='right')
-            if site_index > 0:
-                local_index = index - self.cum_samples[site_index - 1]
-            else:
-                local_index = index
-            site = self.sites[site_index]
-            site_pt = project_dir / f"Dataset/Site_pt/{self.mission}/{site}_data.pt"
-            stamp_pt = project_dir / f"Dataset/Site_pt/{self.mission}/{site}_stamp.pt"
-            site_data = torch.load(site_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
-            time_stamp = torch.load(stamp_pt)[local_index: local_index + self.seq_len + self.label_len + self.pred_len]
-
-            all_cols = degenerate_cols
-            target_idx = [all_cols.index(col) for col in self.target]
-            target_data = site_data[:, target_idx]
-
-            if self.label:
-                x = target_data[:self.seq_len]
-                label = target_data[self.seq_len: self.seq_len + self.label_len]
-                y = target_data[self.seq_len + self.label_len:]
-                x_time_stamp = time_stamp[:self.seq_len]
-                label_time_stamp = time_stamp[self.seq_len: self.seq_len + self.label_len]
-                air = torch.zeros_like(x)
-                air_label = torch.zeros_like(x)
-                static = torch.zeros_like(x)
-            else:
-                x = target_data[self.label_len:self.label_len+self.seq_len]
-                label = target_data[:self.label_len]
-                y = target_data[self.label_len+self.seq_len:]
-                x_time_stamp = time_stamp[self.label_len:self.label_len+self.seq_len]
-                label_time_stamp = time_stamp[:self.label_len]
-                air = torch.zeros_like(x)
-                air_label = torch.zeros_like(x)
-                static = torch.zeros_like(x)
-
-            if self.normalize:
-                normalization_params = json.load(open(project_dir / 'normalization_params.json', 'r', encoding='utf-8'))
-                air_means = torch.tensor(normalization_params["air_means"])
-                air_stds = torch.tensor(normalization_params["air_stds"])
-
-                x_indices = [air_cols.index(col) for col in self.target]
-
-                x_means = air_means[x_indices]
-                x_stds = air_stds[x_indices]
-
-                x = (x - x_means) / x_stds
-                label = (label - x_means) / x_stds
-                y = (y - x_means) / x_stds
 
         return x, label, y, x_time_stamp, label_time_stamp, air, air_label, static
 
 
 def get_site_dataloader(args):
-    if args.mission in ["test", "degenerate"]:
-        site_path = get_project_root() / "Logs/test.txt" if args.mission == "test" else get_project_root() / "Logs/degenerate.txt"
-        sites = site_path.read_text(encoding='utf-8').splitlines()
+    csv_name = os.path.basename(args.csv_path)
+    name, extension = os.path.splitext(csv_name)
+    site_path = get_project_root() / f"Logs/{name}.txt"
+    sites = site_path.read_text(encoding='utf-8').splitlines()
+    if args.mission == "test":
         batch_size = args.batch_size
 
         test_dataset = SiteDataset(csv_path=args.csv_path, seq_len=args.seq_len, label_len=args.label_len,
@@ -496,9 +501,6 @@ def get_site_dataloader(args):
         return test_dataset, test_dataloader
 
     elif args.mission == "train":  # A validation set will also be created
-        site_path = get_project_root() / "Logs/train.txt"
-        sites = site_path.read_text(encoding='utf-8').splitlines()
-
         # 1. Select 80% sites for training
         sites_copy = sites.copy()
         random.shuffle(sites_copy)
@@ -544,7 +546,7 @@ def get_site_dataloader(args):
 
 if __name__ == "__main__":
     dataset = SiteDataset(
-        csv_path=project_dir/'Dataset/20230101-20231231Shanghai.csv',
+        csv_path=project_dir / 'Dataset/2022.csv',
         seq_len=336,
         label_len=168,
         pred_len=168,
@@ -553,13 +555,8 @@ if __name__ == "__main__":
         sites=None,
         dataset_norm=True,
         target=['NO2', 'PM2.5', 'O3'],
-        mission='degenerate',
+        mission='train',
         label=False
     )
 
-    for i in range(len(dataset)):
-        x, label, y, x_time_stamp, label_time_stamp, air, air_label, static = dataset[i]
-        print(i, '\n')
-        print(torch.max(x[:, 0]))
-        print(torch.max(x[:, 1]))
-        print(torch.max(x[:, 2]))
+    print(len(dataset))
