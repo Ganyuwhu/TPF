@@ -294,7 +294,7 @@ class MeteoDataset(Dataset):
             current_O3_data[current_O3_data < 0] = 0
             current_PM25_data[current_PM25_data < 0] = 0
 
-            raw_air_data[index] = np.concatenate((current_air_data, current_NO2_data, current_O3_data, current_PM25_data), axis=0)
+            raw_air_data[index] = np.concatenate((current_NO2_data, current_O3_data, current_PM25_data, current_air_data), axis=0)
             current_mask = get_mask(current_air_data) * get_mask(current_NO2_data) * get_mask(current_O3_data) * get_mask(current_PM25_data)
 
             air_mask = air_mask * current_mask
@@ -443,6 +443,12 @@ class MeteoDataset(Dataset):
         col = index % self.width  # 列索引
         return row, col
 
+    def get_coordinates(self, index):
+        row, col = self.index_to_coordinate_2d(index)
+        lons = 113.733 + col * 0.001
+        lats = 22.86 - row * 0.001
+        return lons, lats
+
     def __getitem__(self, index):
         if self.label:
             x = self.pollutant_datas[:self.seq_len, :, index]
@@ -476,8 +482,100 @@ class MeteoDataset(Dataset):
             return len(self.valid_index) * steps
 
 
-def get_meteo_dataloader():
-    pass
+def get_meteo_dataloader(args):
+    if args.mission == 'test':
+        shuffle_flag = False
+        drop_last = False
+        batch_size = args.batch_size
+
+        data_set = MeteoDataset(
+            data_path=args.data_path,
+            memory_path=args.memory_path,
+            target=args.target,
+            seq_len=args.seq_len,
+            label_len=args.label_len,
+            label=args.label,
+            pred_len=args.pred_len,
+            dataset_norm=args.dataset_norm,
+            dataset_stride=args.dataset_stride,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            sample_rate=args.sample_rate
+        )
+
+    elif args.mission == 'vali':
+        shuffle_flag = False
+        drop_last = False
+        batch_size = args.batch_size
+
+        data_set = MeteoDataset(
+            data_path=args.data_path,
+            memory_path=args.memory_path,
+            target=args.target,
+            seq_len=args.seq_len,
+            label_len=args.label_len,
+            label=args.label,
+            pred_len=args.pred_len,
+            dataset_norm=args.dataset_norm,
+            dataset_stride=args.dataset_stride,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            sample_rate=args.sample_rate
+        )
+
+    elif args.mission == 'train':
+        shuffle_flag = True
+        drop_last = True
+        batch_size = args.batch_size
+
+        data_set = MeteoDataset(
+            data_path=args.data_path,
+            memory_path=args.memory_path,
+            target=args.target,
+            seq_len=args.seq_len,
+            label_len=args.label_len,
+            label=args.label,
+            pred_len=args.pred_len,
+            dataset_norm=args.dataset_norm,
+            dataset_stride=args.dataset_stride,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            sample_rate=args.sample_rate
+        )
+
+    elif args.mission == 'predict':
+        shuffle_flag = False
+        drop_last = False
+        batch_size = args.batch_size
+
+        data_set = MeteoDataset(
+            data_path=args.data_path,
+            memory_path=args.memory_path,
+            target=args.target,
+            seq_len=args.seq_len,
+            label_len=args.label_len,
+            label=args.label,
+            pred_len=args.pred_len,
+            dataset_norm=args.dataset_norm,
+            dataset_stride=args.dataset_stride,
+            start_time=args.start_time,
+            end_time=args.end_time,
+            sample_rate=args.sample_rate
+        )
+
+    else:
+        raise ValueError('args.mission should be "train", "vali", "test" or "predict".')
+
+    data_loader = DataLoader(
+        data_set,
+        batch_size=batch_size,
+        shuffle=shuffle_flag,
+        num_workers=0,  # 用于加载的子进程数量
+        drop_last=drop_last,  # 是否舍弃最后一个不足一个batch_size的批次
+        pin_memory=True  # 是否将加载的数据张量固定在内存中
+    )
+
+    return data_set, data_loader
 
 
 if __name__ == "__main__":

@@ -49,6 +49,21 @@ pollutant_id = {
     'O3': r'$\mathrm{O_{3}}$'
 }
 
+plt.rcParams.update({
+    "font.family": "Times New Roman",
+    "axes.unicode_minus": False,  # 解决负号显示问题
+    'font.size': 16,
+    'axes.labelsize': 20,
+    'axes.titlesize': 22,
+    'legend.fontsize': 18,
+    'xtick.labelsize': 16,
+    'ytick.labelsize': 16,
+    'mathtext.fontset': 'custom',
+    'mathtext.rm': 'Times New Roman',
+    'mathtext.it': 'Times New Roman:italic',
+    'mathtext.bf': 'Times New Roman:bold'
+})
+
 
 class ExpMetrics:
     def __init__(self, target, epochs=0):
@@ -357,8 +372,8 @@ class Exp:
         elif self.mission == 'predict':
             self.datasets['predict_dataset'], self.dataloaders['predict_dataloader'] = get_site_dataloader(self.args) \
                 if self.dataset_type == "site" else get_meteo_dataloader(self.args)
-        elif self.mission == 'degenerate':
-            self.datasets['degenerate_dataset'], self.dataloaders['degenerate_dataloader'] = get_site_dataloader(self.args) \
+        elif self.mission == 'generate':
+            self.datasets['generate_dataset'], self.dataloaders['generate_dataloader'] = get_site_dataloader(self.args) \
                 if self.dataset_type == "site" else get_meteo_dataloader(self.args)
         else:
             raise ValueError('Mission should be "train", "test", "test_p2p" or "predict".')

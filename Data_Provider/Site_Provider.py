@@ -311,7 +311,7 @@ class SiteDataset(Dataset):
             self.to_pt(df_raw, sites=self.sites)
 
         if str.isdigit(self.name):
-            if not Path.exists(project_dir / 'degenerate_normalization_params.json'):
+            if not Path.exists(project_dir / 'generate_normalization_params.json'):
                 if self.mission == "train":
                     means = df_raw[degenerate_cols].mean(skipna=True)
                     stds = df_raw[degenerate_cols].std(skipna=True)
@@ -320,7 +320,7 @@ class SiteDataset(Dataset):
                         "air_means": means.to_list(),
                         "air_stds": stds.to_list()
                     }
-                    with open(project_dir / 'degenerate_normalization_params.json', 'w', encoding='utf-8') as f:
+                    with open(project_dir / 'generate_normalization_params.json', 'w', encoding='utf-8') as f:
                         json.dump(normalization_params, f, ensure_ascii=False, indent=2)
         else:
             if not Path.exists(project_dir / 'normalization_params.json'):
@@ -412,7 +412,7 @@ class SiteDataset(Dataset):
                 static = torch.zeros_like(x)
 
             if self.normalize:
-                normalization_params = json.load(open(project_dir / 'degenerate_normalization_params.json', 'r', encoding='utf-8'))
+                normalization_params = json.load(open(project_dir / 'generate_normalization_params.json', 'r', encoding='utf-8'))
                 air_means = torch.tensor(normalization_params["air_means"])
                 air_stds = torch.tensor(normalization_params["air_stds"])
 
