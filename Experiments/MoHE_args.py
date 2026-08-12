@@ -58,7 +58,7 @@ def get_site_args():
     parser.add_argument('--headwise_attn_gate', type=bool, default=False, help='Use headwise attention gate')
     parser.add_argument('--c_att_mode', type=str, default='full', choices=['full', 'partial'],
                         help='Cross attention mode')
-    parser.add_argument('--n_vars', type=int, default=3, help='Number of variables')
+    parser.add_argument('--n_vars', type=int, default=1, help='Number of variables')
     parser.add_argument('--cross_vars', type=int, default=4, help='Number of cross variables')
 
     # exp configs
@@ -83,15 +83,24 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    # args.mission = 'train'
-    # args.csv_path = project_dir / "Dataset/2022.csv"
-    #
-    # args.learning_rate = 1e-5
-    # exp_finetune = Exp(args)
-    # exp_finetune.train()
+    for item in args.target:
+        args.target = [item]
+        args.mission = 'train'
+        args.csv_path = project_dir / "Dataset/train.csv"
 
-    args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/2023.csv"
-    args.model_path = project_dir / f'checkpoints/MoHETransformer/NO2_PM2.5_O3_MoHETransformer_pl336_fl168_rmse_generate_None/checkpoint.pth'
-    exp_test = Exp(args)
-    exp_test.test()
+        args.learning_rate = 1e-5
+        exp_finetune = Exp(args)
+        exp_finetune.train()
+        args.mission = 'test'
+        args.csv_path = project_dir / "Dataset/test.csv"
+        args.model_path = project_dir / f'checkpoints/MoHETransformer/{item}_MoHETransformer_pl336_fl168_rmse_Shenzhen_None/checkpoint.pth'
+        exp_test = Exp(args)
+        test_metrics = exp_test.test()
+        logs = {}
+        for pollutant in args.target:
+            logs[f'{pollutant}_logs'] = {}
+        for i, pollutant in enumerate(args.target):
+            logs[f'{pollutant}_logs']['R'] = test_metrics.datas['R'][i].item()
+            logs[f'{pollutant}_logs']['RMSE'] = test_metrics.datas['rmse_per_feature'][i].item()
+        exp_test.test_per_site(logs)
+        args.model_path = None

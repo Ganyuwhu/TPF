@@ -483,6 +483,9 @@ def get_site_dataloader(args):
     name, extension = os.path.splitext(csv_name)
     site_path = get_project_root() / f"Logs/{name}.txt"
     sites = site_path.read_text(encoding='utf-8').splitlines()
+    if hasattr(args, 'sites_num') and args.sites_num is not None:
+        sites = sites[:args.sites_num]
+    print("使用站点个数", len(sites))
     if args.mission == "test":
         batch_size = args.batch_size
 

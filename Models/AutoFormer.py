@@ -322,8 +322,9 @@ class AutoFormer(nn.Module):
         self.target = target
         self.static_dim = static_dim
 
-        self.static_embedding = StaticTimeEmbedding(static_dim)
-        self.static_linear = nn.Linear(static_dim, enc_in)
+        if self.static_dim is not None:
+            self.static_embedding = StaticTimeEmbedding(static_dim)
+            self.static_linear = nn.Linear(static_dim, enc_in)
 
         # Decomp
         kernel_size = moving_avg

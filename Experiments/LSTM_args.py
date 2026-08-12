@@ -68,11 +68,22 @@ def get_site_args():
 if __name__ == "__main__":
     args = get_site_args()
     # args.mission = 'train'
-    # args.csv_path = project_dir / "Dataset/2022.csv"
-    # exp_train = Exp(args)
-    # exp_train.train()
-    args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/2023.csv"
-    args.model_path = project_dir / f'checkpoints/LSTM/NO2_PM2.5_O3_LSTM_pl336_fl168_rmse_generate_None/checkpoint.pth'
-    exp_test = Exp(args)
-    exp_test.test()
+    # args.csv_path = project_dir / "Dataset/train.csv"
+
+    # args.learning_rate = 5e-5
+    # exp_finetune = Exp(args)
+    # exp_finetune.train()
+    for item in args.target:
+        args.target = [item]
+        args.mission = 'test'
+        args.csv_path = project_dir / "Dataset/test.csv"
+        args.model_path = project_dir / f'checkpoints/LSTM/{item}_LSTM_pl336_fl168_rmse_Shenzhen_None/checkpoint.pth'
+        exp_test = Exp(args)
+        test_metrics = exp_test.test()
+        logs = {}
+        for pollutant in args.target:
+            logs[f'{pollutant}_logs'] = {}
+        for i, pollutant in enumerate(args.target):
+            logs[f'{pollutant}_logs']['R'] = test_metrics.datas['R'][i].item()
+            logs[f'{pollutant}_logs']['RMSE'] = test_metrics.datas['rmse_per_feature'][i].item()
+        exp_test.test_per_site(logs)

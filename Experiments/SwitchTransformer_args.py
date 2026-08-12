@@ -32,7 +32,7 @@ def get_site_args():
     parser.add_argument('--label', type=bool, default=False)
 
     # model
-    parser.add_argument("--n_vars", type=int, default=3)
+    parser.add_argument("--n_vars", type=int, default=1)
     parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--heads", type=int, default=8)
     parser.add_argument("--dim_head", type=int, default=64)
@@ -63,15 +63,24 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    args.mission = 'train'
-    args.csv_path = project_dir / "Dataset/2022.csv"
+    for item in args.target:
+        args.target = [item]
+        args.mission = 'train'
+        args.csv_path = project_dir / "Dataset/train.csv"
 
-    args.learning_rate = 1e-4
-    exp_finetune = Exp(args)
-    exp_finetune.train()
-
-    args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/2023.csv"
-    args.model_path = project_dir / f'checkpoints/SwitchTransformer/NO2_PM2.5_O3_SwitchTransformer_pl336_fl168_rmse_generate_None/checkpoint.pth'
-    exp_test = Exp(args)
-    exp_test.test()
+        args.learning_rate = 1e-4
+        exp_finetune = Exp(args)
+        exp_finetune.train()
+        args.mission = 'test'
+        args.csv_path = project_dir / "Dataset/test.csv"
+        args.model_path = project_dir / f'checkpoints/SwitchTransformer/{item}_SwitchTransformer_pl336_fl168_rmse_Shenzhen_None/checkpoint.pth'
+        exp_test = Exp(args)
+        test_metrics = exp_test.test()
+        logs = {}
+        for pollutant in args.target:
+            logs[f'{pollutant}_logs'] = {}
+        for i, pollutant in enumerate(args.target):
+            logs[f'{pollutant}_logs']['R'] = test_metrics.datas['R'][i].item()
+            logs[f'{pollutant}_logs']['RMSE'] = test_metrics.datas['rmse_per_feature'][i].item()
+        exp_test.test_per_site(logs)
+        args.model_path = None

@@ -954,7 +954,7 @@ class Exp:
 
         return train_metrics
 
-    def test_per_site(self, **kwargs):
+    def test_per_site(self, logs=None, **kwargs):
         print(f"start test_per_site: {self.setting}")
 
         # 测试结果保存路径
@@ -996,6 +996,8 @@ class Exp:
 
         n_pollutants = len(self.target)
 
+        VMAX = {'NO2': 80, 'PM2.5': 50, 'O3': 150}
+
         with torch.no_grad():
             for i, batch in enumerate(tqdm(test_dataloader)):
                 batch_x, batch_label, batch_y, batch_x_stamp, batch_label_stamp, batch_air, batch_air_label, batch_static = batch
@@ -1032,7 +1034,10 @@ class Exp:
                 gt = gp_pair[f'{pollutant}_gt']
                 pollutant_name = pollutant_id[pollutant]
                 save_pth = result_path / f'{pollutant}.png'
-                scatter_plot(predict, gt, pollutant_name, save_pth, logs=None)
+                if logs is not None:
+                    scatter_plot(predict, gt, pollutant_name, save_pth, logs=logs[f'{pollutant}_logs'])
+                else:
+                    scatter_plot(predict, gt, pollutant_name, save_pth, logs=None)
 
             cum = [0] + list(test_dataset.cum_samples)
             for pollutant in self.target:
@@ -1041,7 +1046,10 @@ class Exp:
                     predict_npy_pth = result_path / f'{pollutant}_{site}_pred.npy'
 
                     time_step = np.arange(cum[i + 1] - cum[i])
+                    vmin = 0
+                    vmax = VMAX[pollutant]
                     plt.figure(figsize=(25, 6))
+                    plt.ylim((vmin, vmax))
 
                     predict_site = np.array(gp_pair[pollutant + '_pred'][cum[i]:cum[i + 1]])
                     predict_site[predict_site <= 0] = 0
@@ -1050,6 +1058,7 @@ class Exp:
                     predict_ma = Moving_Avg(predict_site, 24)
                     gt_ma = Moving_Avg(gt_site, 24)
                     avg_time_step = np.arange(predict_ma.shape[-1])
+
 
                     # ===== 1. 构造时间轴 =====
                     start_date = datetime(2023, 1, 15)  # 例如 01-15

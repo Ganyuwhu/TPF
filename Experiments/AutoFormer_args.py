@@ -58,8 +58,8 @@ def get_site_args():
     parser.add_argument('--use_amp', type=bool, default=False)
     parser.add_argument('--model_type', type=str, default='AutoFormer')
     parser.add_argument('--model_path', type=str, default=None)
-    parser.add_argument('--train_epochs', type=int, default=10)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--train_epochs', type=int, default=5)
+    parser.add_argument('--learning_rate', type=float, default=2e-3)
     parser.add_argument('--dataset_type', type=str, default='site')
     parser.add_argument('--checkpoints_path', type=Path, default=project_dir / 'checkpoints')
     parser.add_argument('--loss_func', type=str, default='rmse')
@@ -72,11 +72,10 @@ def get_site_args():
 if __name__ == "__main__":
     args = get_site_args()
     pollutants = ['NO2', 'PM2.5', 'O3']
-    static_dims = [26, 26, 7]
     for i, item in enumerate(pollutants):
         args.target = [item]
         args.mission = 'train'
-        args.static_dim = static_dims[i]
+        args.static_dim = None
         args.csv_path = project_dir / "Dataset/train.csv"
         exp_train = Exp(args)
         exp_train.train()
@@ -84,5 +83,18 @@ if __name__ == "__main__":
         args.csv_path = project_dir / "Dataset/test.csv"
         args.model_path = project_dir / f'checkpoints/AutoFormer/{item}_AutoFormer_pl336_fl168_rmse_None/checkpoint.pth'
         exp_test = Exp(args)
-        exp_test.test_per_site()
+        exp_test.test()
         args.model_path = None
+
+    # args.mission = 'test'
+    # args.csv_path = project_dir / "Dataset/test.csv"
+    # args.model_path = project_dir / f'checkpoints/AutoFormer/NO2_PM2.5_O3_AutoFormer_pl336_fl168_rmse_Shenzhen_None/checkpoint.pth'
+    # exp_test = Exp(args)
+    # test_metrics = exp_test.test()
+    # logs = {}
+    # for pollutant in args.target:
+    #     logs[f'{pollutant}_logs'] = {}
+    # for i, pollutant in enumerate(args.target):
+    #     logs[f'{pollutant}_logs']['R'] = test_metrics.datas['R'][i].item()
+    #     logs[f'{pollutant}_logs']['RMSE'] = test_metrics.datas['rmse_per_feature'][i].item()
+    # exp_test.test_per_site(logs)

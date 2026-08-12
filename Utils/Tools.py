@@ -104,17 +104,13 @@ def scatter_plot(predict, gt, pollutant_name, save_pth, logs):
     x_line = np.linspace(gt.min(), gt.max(), 100)
     y_line = model.predict(x_line.reshape(-1, 1))
 
-    colors = ['blue', 'lime', 'yellow', 'orange', 'red']  # 从低到高
-    cmap = LinearSegmentedColormap.from_list('pollutant_cmap', colors, N=256)
-    cmap.set_bad(color='white')
-
     plt.figure(figsize=(6, 6))
 
     sc = plt.scatter(
         gt, pred,
         c=density_norm,
         s=10,
-        cmap=cmap,
+        cmap='turbo',
         alpha=0.8
     )
 
@@ -128,8 +124,8 @@ def scatter_plot(predict, gt, pollutant_name, save_pth, logs):
     plt.tight_layout()
 
     # 填充文本
-    # plt.text(0.05, 0.95, s=logs['R'], transform=plt.gca().transAxes, fontsize=16)
-    # plt.text(0.05, 0.9, s=logs['RMSE'], transform=plt.gca().transAxes, fontsize=16)
+    plt.text(0.05, 0.95, s=f'R = {logs["R"]: .2f}', transform=plt.gca().transAxes, fontsize=16) if 'R' in logs else 1
+    plt.text(0.05, 0.9, s=f'RMSE = {logs["RMSE"]: .2f}', transform=plt.gca().transAxes, fontsize=16) if 'RMSE' in logs else 1
     plt.text(0.05, 0.85, s=f'y = {a: .2f}x + {b: .2f}', transform=plt.gca().transAxes, fontsize=16)
 
     plt.savefig(save_pth, dpi=600)

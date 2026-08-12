@@ -19,7 +19,7 @@ def get_site_args():
 
     # 通用部分
     parser.add_argument('--csv_path', type=str, default=project_dir / "Dataset/train.csv")
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--freq', type=str, default='h')
     parser.add_argument('--target', type=list_from_string, default=['NO2', 'PM2.5', 'O3'])
     parser.add_argument('--seq_len', type=int, default=336)
@@ -84,15 +84,22 @@ def get_site_args():
 
 if __name__ == "__main__":
     args = get_site_args()
-    args.mission = 'train'
-    args.csv_path = project_dir / "Dataset/2022.csv"
+    # args.mission = 'train'
+    # args.csv_path = project_dir / "Dataset/train.csv"
 
-    args.learning_rate = 1e-4
-    exp_finetune = Exp(args)
-    exp_finetune.train()
+    # args.learning_rate = 5e-5
+    # exp_finetune = Exp(args)
+    # exp_finetune.train()
 
     args.mission = 'test'
-    args.csv_path = project_dir / "Dataset/2023.csv"
-    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_generate_None/checkpoint.pth'
+    args.csv_path = project_dir / "Dataset/test.csv"
+    args.model_path = project_dir / f'checkpoints/TriPFormer/NO2_PM2.5_O3_TriPFormer_pl336_fl168_rmse_Shenzhen_None/checkpoint.pth'
     exp_test = Exp(args)
-    exp_test.test()
+    test_metrics = exp_test.test()
+    logs = {}
+    for pollutant in args.target:
+        logs[f'{pollutant}_logs'] = {}
+    for i, pollutant in enumerate(args.target):
+        logs[f'{pollutant}_logs']['R'] = test_metrics.datas['R'][i].item()
+        logs[f'{pollutant}_logs']['RMSE'] = test_metrics.datas['rmse_per_feature'][i].item()
+    exp_test.test_per_site(logs)
